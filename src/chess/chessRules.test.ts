@@ -5,6 +5,7 @@ import {
   getFen,
   getGameStatus,
   getLegalMoves,
+  getPiecePlacementsFromFen,
   getTurn,
   loadGameStateFromFen,
 } from './chessRules';
@@ -115,6 +116,45 @@ describe('chessRules', () => {
     }
 
     expect(getFen(result.gameState)).toBe(fen);
+  });
+
+  it('returns deterministic piece placements from the starting FEN', () => {
+    const gameState = createInitialGameState();
+    const piecePlacements = getPiecePlacementsFromFen(getFen(gameState));
+
+    expect(piecePlacements).toHaveLength(32);
+    expect(piecePlacements).toEqual(
+      expect.arrayContaining([
+        {
+          renderId: 'white-king-e1',
+          square: 'e1',
+          color: 'white',
+          piece: 'king',
+        },
+        {
+          renderId: 'black-king-e8',
+          square: 'e8',
+          color: 'black',
+          piece: 'king',
+        },
+      ]),
+    );
+    expect(
+      piecePlacements.filter(
+        (piecePlacement) =>
+          piecePlacement.color === 'white' &&
+          piecePlacement.piece === 'pawn' &&
+          piecePlacement.square.endsWith('2'),
+      ),
+    ).toHaveLength(8);
+    expect(
+      piecePlacements.filter(
+        (piecePlacement) =>
+          piecePlacement.color === 'black' &&
+          piecePlacement.piece === 'pawn' &&
+          piecePlacement.square.endsWith('7'),
+      ),
+    ).toHaveLength(8);
   });
 
   it('exposes ongoing, check, checkmate, stalemate, and draw statuses', () => {

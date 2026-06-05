@@ -4,17 +4,14 @@ import { useStore } from 'zustand';
 
 import '../styles/globals.css';
 import type { ChessGameStatus, ChessSquare } from '../chess/chessTypes';
+import { getPiecePlacementsFromFen } from '../chess/chessRules';
 import type { AiDifficulty } from '../engine/engineTypes';
 import {
   createStockfishEngine,
   type StockfishWorkerLike,
 } from '../engine/stockfishEngine';
 import { createGameStore, type GameStore } from '../game/gameStore';
-import {
-  BoardScene,
-  type BoardSceneCanvasProps,
-  type BoardScenePiecePlacement,
-} from '../scene/BoardScene';
+import { BoardScene, type BoardSceneCanvasProps } from '../scene/BoardScene';
 import { GamePanel } from '../ui/GamePanel';
 import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-asm.js?url';
 
@@ -92,7 +89,7 @@ export function App({
   } = useStore(store, (state) => state);
 
   const sideToMove = getSideToMove(currentFen);
-  const piecePlacements = getPiecePlacements(currentFen);
+  const piecePlacements = getPiecePlacementsFromFen(currentFen);
   const statusLabel = formatGameStatus(gameStatus);
   const moveHistoryLabels = moveHistory.map((move, index) =>
     `${index + 1}. ${move.player} ${move.uci}`,
@@ -239,76 +236,6 @@ function canAiMove(gameStatus: ChessGameStatus): boolean {
 
 function getSideToMove(fen: string): 'white' | 'black' {
   return fen.split(' ')[1] === 'b' ? 'black' : 'white';
-}
-
-function getPiecePlacements(fen: string): BoardScenePiecePlacement[] {
-  const [boardState] = fen.split(' ');
-
-  if (!boardState) {
-    return [];
-  }
-
-  const ranks = boardState.split('/');
-  const piecePlacements: BoardScenePiecePlacement[] = [];
-
-  for (let rankIndex = 0; rankIndex < ranks.length; rankIndex += 1) {
-    const rank = ranks[rankIndex];
-
-    if (!rank) {
-      continue;
-    }
-
-    let fileIndex = 0;
-
-    for (const symbol of rank) {
-      const emptySquares = Number(symbol);
-
-      if (Number.isInteger(emptySquares) && emptySquares > 0) {
-        fileIndex += emptySquares;
-        continue;
-      }
-
-      const piecePlacement = createPiecePlacement(symbol, fileIndex, rankIndex);
-
-      if (piecePlacement) {
-        piecePlacements.push(piecePlacement);
-      }
-
-      fileIndex += 1;
-    }
-  }
-
-  return piecePlacements;
-}
-
-function createPiecePlacement(
-  symbol: string,
-  fileIndex: number,
-  rankIndex: number,
-): BoardScenePiecePlacement | null {
-  const pieceMap: Record<string, BoardScenePiecePlacement['piece']> = {
-    p: 'pawn',
-    n: 'knight',
-    b: 'bishop',
-    r: 'rook',
-    q: 'queen',
-    k: 'king',
-  };
-  const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
-  const rank = 8 - rankIndex;
-  const file = files[fileIndex];
-  const normalizedSymbol = symbol.toLowerCase();
-  const piece = pieceMap[normalizedSymbol];
-
-  if (!piece || !file || rank < 1 || rank > 8) {
-    return null;
-  }
-
-  return {
-    square: `${file}${rank}` as ChessSquare,
-    piece,
-    color: symbol === normalizedSymbol ? 'black' : 'white',
-  };
 }
 
 function capitalizeLabel(value: string): string {
