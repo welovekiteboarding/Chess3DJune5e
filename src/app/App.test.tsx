@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
@@ -40,6 +40,35 @@ describe('App', () => {
     expect(screen.getByTestId('board-scene-canvas')).toBeInTheDocument();
     expect(screen.getByText('Status: In progress')).toBeInTheDocument();
     expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
+  });
+
+  it('does not retry AI requests in a loop after an engine failure', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockRejectedValue(new Error('Engine offline'));
+
+    const store = createGameStore({
+      engine,
+    });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Latest error: Engine offline',
+      ),
+    );
+
+    await waitFor(() => {
+      expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

@@ -5,7 +5,10 @@ import { useStore } from 'zustand';
 import '../styles/globals.css';
 import type { ChessGameStatus, ChessSquare } from '../chess/chessTypes';
 import type { AiDifficulty } from '../engine/engineTypes';
-import { createStockfishEngine } from '../engine/stockfishEngine';
+import {
+  createStockfishEngine,
+  type StockfishWorkerLike,
+} from '../engine/stockfishEngine';
 import { createGameStore, type GameStore } from '../game/gameStore';
 import {
   BoardScene,
@@ -13,6 +16,7 @@ import {
   type BoardScenePiecePlacement,
 } from '../scene/BoardScene';
 import { GamePanel } from '../ui/GamePanel';
+import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-asm.js?url';
 
 const difficultyOptions = [
   { value: 'easy', label: 'Easy' },
@@ -23,6 +27,24 @@ const difficultyOptions = [
 interface OwnedGameStoreRuntime {
   engine: ReturnType<typeof createStockfishEngine>;
   store: GameStore;
+}
+
+function createStockfishWorker(): StockfishWorkerLike {
+  return new Worker(stockfishWorkerUrl, {
+    name: 'stockfish-engine',
+    type: 'classic',
+  }) as StockfishWorkerLike;
+}
+
+function createOwnedGameStoreRuntime(): OwnedGameStoreRuntime {
+  const engine = createStockfishEngine({
+    workerFactory: createStockfishWorker,
+  });
+
+  return {
+    engine,
+    store: createGameStore({ engine }),
+  };
 }
 
 export interface AppProps {
@@ -41,12 +63,7 @@ export function App({
       return null;
     }
 
-    const engine = createStockfishEngine();
-
-    return {
-      engine,
-      store: createGameStore({ engine }),
-    };
+    return createOwnedGameStoreRuntime();
   });
 
   const store = providedStore ?? ownedRuntime?.store;
@@ -96,7 +113,12 @@ export function App({
       return;
     }
 
-    if (isEngineThinking || sideToMove !== aiSide || !canAiMove(gameStatus)) {
+    if (
+      latestError ||
+      isEngineThinking ||
+      sideToMove !== aiSide ||
+      !canAiMove(gameStatus)
+    ) {
       return;
     }
 
@@ -106,6 +128,7 @@ export function App({
     autoRequestAiMoves,
     gameStatus,
     isEngineThinking,
+    latestError,
     requestAiMove,
     sideToMove,
   ]);
