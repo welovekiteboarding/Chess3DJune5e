@@ -14,6 +14,7 @@ import type {
   ChessGameState,
   ChessGameStatus,
   ChessMove,
+  ChessMoveResult,
   ChessPlayer,
   ChessPromotionPiece,
   ChessSquare,
@@ -65,12 +66,27 @@ export interface CreateGameStoreOptions {
 }
 
 export type GameStore = ReturnType<typeof createGameStore>;
+type SetGameStoreState = (
+  partial:
+    | Partial<GameStoreState>
+    | ((state: GameStoreState) => Partial<GameStoreState>),
+) => void;
 
 export function createGameStore(options: CreateGameStoreOptions = {}) {
   const humanSide = options.humanSide ?? 'white';
   const aiSide = humanSide === 'white' ? 'black' : 'white';
   const initialDifficulty = options.aiDifficulty ?? 'medium';
   const engine = options.engine ?? createNoopEngine(initialDifficulty);
+  let engineRequestVersion = 0;
+
+  const invalidatePendingEngineRequest = () => {
+    engineRequestVersion += 1;
+  };
+
+  const cancelPendingEngineRequest = () => {
+    invalidatePendingEngineRequest();
+    void engine.cancelSearch().catch(() => undefined);
+  };
 
   return createStore<GameStoreState>()((set, get) => ({
     ...buildStateSnapshot({
@@ -122,7 +138,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
         return failMoveAttempt(set, 'It is not the human side to move.');
       }
 
-      return applyValidatedMove({
+      const result = applyValidatedMove({
         get,
         set,
         move: {
@@ -132,9 +148,22 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
         },
         player: 'human',
       });
+
+      if (result.ok) {
+        requestAiMove({
+          engine,
+          get,
+          set,
+          invalidatePendingEngineRequest,
+          getCurrentEngineRequestVersion: () => engineRequestVersion,
+        });
+      }
+
+      return result;
     },
 
     startNewGame: () => {
+      cancelPendingEngineRequest();
       set((state) => ({
         ...buildStateSnapshot({
           gameState: createInitialGameState(),
@@ -172,32 +201,16 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
 
       const result = applyUciMove(gameState, uciMove);
 
-      if (!result.ok) {
-        return failMoveAttempt(set, result.error.message);
+      if (result.ok) {
+        cancelPendingEngineRequest();
       }
 
-      set({
-        ...buildStateSnapshot({
-          gameState: result.gameState,
-          humanSide: state.humanSide,
-          aiSide: state.aiSide,
-          aiDifficulty: state.aiDifficulty,
-          moveHistory: [
-            ...state.moveHistory,
-            {
-              player: 'ai',
-              uci: result.move.uci,
-            },
-          ],
-          isEngineThinking: false,
-          latestError: null,
-        }),
+      return applyMoveResult({
+        get,
+        set,
+        result,
+        player: 'ai',
       });
-
-      return {
-        ok: true,
-        move: result.move,
-      };
     },
   }));
 }
@@ -217,12 +230,40 @@ function applyValidatedMove({
   move: ChessMove;
   player: GameMoveRecord['player'];
 }): GameMoveAttemptResult {
-  const state = get();
-  const result = applyMove(getGameState(get), move);
+  return applyMoveResult({
+    get,
+    set,
+    result: applyMove(getGameState(get), move),
+    player,
+  });
+}
 
+function applyMoveResult({
+  get,
+  set,
+  result,
+  player,
+}: {
+  get: () => GameStoreState;
+  set: SetGameStoreState;
+  result: ChessMoveResult;
+  player: GameMoveRecord['player'];
+}): GameMoveAttemptResult {
   if (!result.ok) {
-    return failMoveAttempt(set, result.error.message);
+    return failMoveAttempt(set, result.error.message, {
+      isEngineThinking: false,
+    });
   }
+
+  const state = get();
+  const nextGameStatus = getGameStatus(result.gameState);
+  const shouldRequestAiMove =
+    player === 'human' &&
+    shouldRequestAiMoveAfterHumanMove({
+      aiSide: state.aiSide,
+      gameState: result.gameState,
+      gameStatus: nextGameStatus,
+    });
 
   set({
     ...buildStateSnapshot({
@@ -237,7 +278,7 @@ function applyValidatedMove({
           uci: result.move.uci,
         },
       ],
-      isEngineThinking: false,
+      isEngineThinking: shouldRequestAiMove,
       latestError: null,
     }),
   });
@@ -249,14 +290,12 @@ function applyValidatedMove({
 }
 
 function failMoveAttempt(
-  set: (
-    partial:
-      | Partial<GameStoreState>
-      | ((state: GameStoreState) => Partial<GameStoreState>),
-  ) => void,
+  set: SetGameStoreState,
   error: string,
+  extraState: Partial<GameStoreState> = {},
 ): GameMoveAttemptResult {
   set({
+    ...extraState,
     latestError: error,
   });
 
@@ -313,6 +352,98 @@ function getGameState(get: () => GameStoreState): ChessGameState {
   return {
     fen: get().currentFen,
   };
+}
+
+function requestAiMove({
+  engine,
+  get,
+  set,
+  invalidatePendingEngineRequest,
+  getCurrentEngineRequestVersion,
+}: {
+  engine: AsyncEngineAdapter;
+  get: () => GameStoreState;
+  set: SetGameStoreState;
+  invalidatePendingEngineRequest: () => void;
+  getCurrentEngineRequestVersion: () => number;
+}) {
+  const state = get();
+
+  if (!state.isEngineThinking) {
+    return;
+  }
+
+  const requestFen = state.currentFen;
+  invalidatePendingEngineRequest();
+  const requestVersion = getCurrentEngineRequestVersion();
+
+  void engine
+    .requestBestMove({
+      fen: requestFen,
+    })
+    .then((response) => {
+      if (!isCurrentEngineRequest(get, requestFen, requestVersion, getCurrentEngineRequestVersion)) {
+        return;
+      }
+
+      if (response.fen !== requestFen) {
+        failMoveAttempt(
+          set,
+          'Engine returned a best move for an unexpected position.',
+          {
+            isEngineThinking: false,
+          },
+        );
+        return;
+      }
+
+      applyMoveResult({
+        get,
+        set,
+        result: applyUciMove(getGameState(get), response.move),
+        player: 'ai',
+      });
+    })
+    .catch((error) => {
+      if (!isCurrentEngineRequest(get, requestFen, requestVersion, getCurrentEngineRequestVersion)) {
+        return;
+      }
+
+      failMoveAttempt(
+        set,
+        toErrorMessage(error, 'Failed to request AI move.'),
+        {
+          isEngineThinking: false,
+        },
+      );
+    });
+}
+
+function isCurrentEngineRequest(
+  get: () => GameStoreState,
+  requestFen: string,
+  requestVersion: number,
+  getCurrentEngineRequestVersion: () => number,
+): boolean {
+  return (
+    getCurrentEngineRequestVersion() === requestVersion &&
+    get().currentFen === requestFen
+  );
+}
+
+function shouldRequestAiMoveAfterHumanMove({
+  aiSide,
+  gameState,
+  gameStatus,
+}: {
+  aiSide: ChessPlayer;
+  gameState: ChessGameState;
+  gameStatus: ChessGameStatus;
+}): boolean {
+  return (
+    getTurn(gameState) === aiSide &&
+    (gameStatus.kind === 'ongoing' || gameStatus.kind === 'check')
+  );
 }
 
 function createNoopEngine(difficulty: AiDifficulty): AsyncEngineAdapter {

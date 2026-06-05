@@ -62,6 +62,47 @@ describe('gameStore', () => {
     ]);
   });
 
+  it('requests and applies an AI move after a successful human move', async () => {
+    const engine = createDeferredEngine();
+    const store = createGameStore({
+      engine,
+    });
+
+    store.getState().selectSquare('e2');
+    const result = store.getState().attemptHumanMove('e4');
+
+    expect(result.ok).toBe(true);
+    expect(store.getState().isEngineThinking).toBe(true);
+    expect(engine.requestBestMove).toHaveBeenCalledWith({
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+    });
+
+    engine.resolveBestMove({
+      move: 'e7e5',
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+    });
+
+    await vi.waitFor(() => {
+      expect(store.getState().currentFen).toBe(
+        'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+      );
+    });
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+      {
+        player: 'ai',
+        uci: 'e7e5',
+      },
+    ]);
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBeNull();
+  });
+
   it('rejects an illegal human move without changing the position', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -137,6 +178,36 @@ describe('gameStore', () => {
     expect(store.getState().latestError).toBe('Illegal move: e7e4');
   });
 
+  it('records an engine request failure and clears thinking state', async () => {
+    const engine = createDeferredEngine();
+    const store = createGameStore({
+      engine,
+    });
+
+    store.getState().selectSquare('e2');
+    const result = store.getState().attemptHumanMove('e4');
+
+    expect(result.ok).toBe(true);
+    expect(store.getState().isEngineThinking).toBe(true);
+
+    engine.rejectBestMove(new Error('Engine lost connection.'));
+
+    await vi.waitFor(() => {
+      expect(store.getState().latestError).toBe('Engine lost connection.');
+    });
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+    );
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().isEngineThinking).toBe(false);
+  });
+
   it('starts a new game from the initial position and clears transient state', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -170,6 +241,41 @@ function createFakeEngine(): AsyncEngineAdapter {
         difficulty: 'medium',
         fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
       };
+    },
+    async cancelSearch() {},
+    async dispose() {},
+  };
+}
+
+function createDeferredEngine(): AsyncEngineAdapter & {
+  requestBestMove: ReturnType<typeof vi.fn>;
+  resolveBestMove: (value: Awaited<ReturnType<AsyncEngineAdapter['requestBestMove']>>) => void;
+  rejectBestMove: (reason: unknown) => void;
+} {
+  let resolveBestMove: (
+    value: Awaited<ReturnType<AsyncEngineAdapter['requestBestMove']>>,
+  ) => void = () => {};
+  let rejectBestMove: (reason: unknown) => void = () => {};
+
+  const requestBestMove = vi.fn(
+    () =>
+      new Promise<Awaited<ReturnType<AsyncEngineAdapter['requestBestMove']>>>(
+        (resolve, reject) => {
+          resolveBestMove = resolve;
+          rejectBestMove = reject;
+        },
+      ),
+  );
+
+  return {
+    state: 'ready',
+    async setDifficulty() {},
+    requestBestMove,
+    resolveBestMove(value) {
+      resolveBestMove(value);
+    },
+    rejectBestMove(reason) {
+      rejectBestMove(reason);
     },
     async cancelSearch() {},
     async dispose() {},
