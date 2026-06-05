@@ -322,6 +322,90 @@ describe('gameStore', () => {
     ]);
   });
 
+  it('sets engine thinking while an AI move request is pending and clears it after success', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    const pendingRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: true,
+      move: {
+        from: 'e7',
+        to: 'e5',
+        uci: 'e7e5',
+      },
+    });
+
+    expect(store.getState().isEngineThinking).toBe(false);
+  });
+
+  it('clears engine thinking after an AI move request fails', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    const pendingRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+
+    deferredResponse.reject(new Error('Engine offline'));
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: false,
+      error: 'Engine offline',
+    });
+
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBe('Engine offline');
+  });
+
+  it('clears engine thinking when a pending AI move request is cancelled by starting a new game', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+
+    store.getState().startNewGame();
+
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+  });
+
   it('applies the selected difficulty to the next AI request through the engine adapter', async () => {
     const engine = createFakeEngine();
     const store = createGameStore({ engine });
