@@ -6,7 +6,7 @@ import '../styles/globals.css';
 import type { ChessGameStatus, ChessSquare } from '../chess/chessTypes';
 import { getPiecePlacementsFromFen } from '../chess/chessRules';
 import type { AiDifficulty } from '../engine/engineTypes';
-import type { GameStore } from '../game/gameStore';
+import type { GameStore, GameStoreState } from '../game/gameStore';
 import { BoardScene, type BoardSceneCanvasProps } from '../scene/BoardScene';
 import { GamePanel } from '../ui/GamePanel';
 import { PromotionDialog } from '../ui/PromotionDialog';
@@ -64,10 +64,14 @@ export function App({
     }
 
     if (
-      latestError ||
-      isEngineThinking ||
-      sideToMove !== aiSide ||
-      !canAiMove(gameStatus)
+      !shouldAutoRequestAiMove({
+        aiSide,
+        gameStatus,
+        isEngineThinking,
+        latestError,
+        pendingPromotion,
+        sideToMove,
+      })
     ) {
       return;
     }
@@ -79,6 +83,7 @@ export function App({
     gameStatus,
     isEngineThinking,
     latestError,
+    pendingPromotion,
     requestAiMove,
     sideToMove,
   ]);
@@ -173,6 +178,30 @@ export function App({
 
 function canAiMove(gameStatus: ChessGameStatus): boolean {
   return gameStatus.kind === 'ongoing' || gameStatus.kind === 'check';
+}
+
+function shouldAutoRequestAiMove({
+  aiSide,
+  gameStatus,
+  isEngineThinking,
+  latestError,
+  pendingPromotion,
+  sideToMove,
+}: {
+  aiSide: GameStoreState['aiSide'];
+  gameStatus: ChessGameStatus;
+  isEngineThinking: boolean;
+  latestError: string | null;
+  pendingPromotion: GameStoreState['pendingPromotion'];
+  sideToMove: GameStoreState['sideToMove'];
+}): boolean {
+  return (
+    latestError === null &&
+    pendingPromotion === null &&
+    !isEngineThinking &&
+    sideToMove === aiSide &&
+    canAiMove(gameStatus)
+  );
 }
 
 function capitalizeLabel(value: string): string {
