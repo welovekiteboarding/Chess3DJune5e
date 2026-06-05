@@ -36,7 +36,7 @@ The `--auto-rework-continue` flag did all the recovery itself. Every rework was 
 | Task ID | Linear | PR | Title |
 |---|---|---|---|
 | `stockfish-protocol-parser-003` | C-6 | #3 | Parse Stockfish UCI output |
-| `local-board-scene-shell-006` | C-3 | #6 | Add 3D board scene shell |
+| `local-board-scene-shell-006` | C-3 | #8 | Add 3D board scene shell |
 | `local-game-panel-007` | C-5 | #5 | Add local game control panel |
 | `local-foundation-docs-009` | C-10 | #10 | Document local MVP architecture |
 
@@ -74,7 +74,7 @@ The validator failed *before* the PR was opened, transitioned the issue to `Rewo
 
 ---
 
-### 3.2 `local-chess-rules-002` (C-4, PR #7) — worker wrote files outside the task's scope
+### 3.2 `local-chess-rules-002` (C-4, PR #6) — worker wrote files outside the task's scope
 
 **Symphony classification:** `category: review, stage: automated_review, reason: changes_requested`
 
@@ -86,7 +86,7 @@ The **Codex reviewer** then read the PR diff against the task's acceptance crite
 
 The review artifact (`tmp/reviews/C-4.json`) was written with `outcome: changes_requested`. The merge phase saw `changes_requested` and refused to merge. `--auto-rework-continue` moved C-4 back to `Todo` *on the same branch* and re-queued the work.
 
-**What changed on the retry:** the rework prompt told the worker: "you previously created files outside your task scope; here's the reviewer's exact text." The retry worker removed everything outside `src/chess/`, re-committed only the chess rules wrapper, and the next review cycle returned `approved`. Merged at 09:54 UTC.
+**What changed on the retry:** the rework prompt told the worker: "you previously created files outside your task scope; here's the reviewer's exact text." The retry worker removed everything outside `src/chess/`, re-committed only the chess rules wrapper, and the next review cycle returned `approved`. Merged at 09:11 UTC.
 
 **Lesson:** the Codex reviewer is the second line of defense after the structural scope validator — it catches *intent-level* scope creep that the path-based validator can't see. Scope.include is a positive list and not enforced as a hard upper bound by finalization; the reviewer is what enforces it.
 
@@ -108,7 +108,7 @@ That's a concrete, file-and-line-cited finding about real-world engine integrati
 
 ---
 
-### 3.4 `local-game-store-005` (C-8, PR #8) — GitHub API transient failure
+### 3.4 `local-game-store-005` (C-8, PR #7) — GitHub API transient failure
 
 **Symphony classification:** `category: review_infrastructure, stage: automated_review, reason: command_failed gh HTTP 504`
 
@@ -118,7 +118,7 @@ That's a concrete, file-and-line-cited finding about real-world engine integrati
 
 This is **not a code defect** — it's an infrastructure failure outside Symphony's control. The harness correctly classified the category as `review_infrastructure` (distinct from `review`, which is for actual reviewer findings). `--auto-rework-continue` moved C-8 back to `Todo` and the next operate tick re-attempted the review.
 
-**What changed on the retry:** nothing about the code changed. The retry worker re-pushed the same content. The reviewer retried against the same PR diff, GitHub answered, the review returned `approved`. Merged at 10:01 UTC.
+**What changed on the retry:** nothing about the code changed. The retry worker re-pushed the same content. The reviewer retried against the same PR diff, GitHub answered, the review returned `approved`. Merged at 09:54 UTC.
 
 **Lesson:** the harness's `review_infrastructure` category vs `review` category distinction is load-bearing. A transient `gh` 504 doesn't mean the code is bad; it means try again. The auto-rework loop transparently rode through it without manual intervention.
 
