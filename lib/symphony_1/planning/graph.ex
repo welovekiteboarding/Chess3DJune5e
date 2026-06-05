@@ -269,6 +269,7 @@ defmodule Symphony1.Planning.Graph do
   - `mix test [path ...] [--seed N]`
   - `npm install`
   - `npm run lint`
+  - `npm run test:browser`
   - `npm run test -- --run`
   - `npm run build`
   - `test -f docs/RELATIVE_PATH`
@@ -668,6 +669,10 @@ defmodule Symphony1.Planning.Graph do
 
   defp parse_task_command_tokens(["npm", "run", "build"], _command) do
     {:ok, {"npm", ["run", "build"]}}
+  end
+
+  defp parse_task_command_tokens(["npm", "run", "test:browser"], _command) do
+    {:ok, {"npm", ["run", "test:browser"]}}
   end
 
   defp parse_task_command_tokens(["npm", "run", "test", "--", "--run"], _command) do
