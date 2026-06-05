@@ -34,6 +34,8 @@ describe('App', () => {
         name: '3D Chess',
       }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell-title')).toHaveTextContent('3D Chess');
     expect(
       screen.getByRole('region', { name: 'Board region' }),
     ).toBeInTheDocument();
