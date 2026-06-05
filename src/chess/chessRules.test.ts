@@ -58,6 +58,66 @@ describe('chessRules', () => {
     expect(result.move.uci).toBe('e2e4');
   });
 
+  it('lists all white promotion choices from a promotion-ready position', () => {
+    const gameState = loadGameStateFromFenOrThrow(
+      '7k/4P3/8/8/8/8/8/4K3 w - - 0 1',
+    );
+
+    expect(getLegalMoves(gameState, 'e7')).toEqual(
+      expect.arrayContaining([
+        {
+          from: 'e7',
+          to: 'e8',
+          promotion: 'queen',
+          san: 'e8=Q+',
+          uci: 'e7e8q',
+        },
+        {
+          from: 'e7',
+          to: 'e8',
+          promotion: 'rook',
+          san: 'e8=R+',
+          uci: 'e7e8r',
+        },
+        {
+          from: 'e7',
+          to: 'e8',
+          promotion: 'bishop',
+          san: 'e8=B',
+          uci: 'e7e8b',
+        },
+        {
+          from: 'e7',
+          to: 'e8',
+          promotion: 'knight',
+          san: 'e8=N',
+          uci: 'e7e8n',
+        },
+      ]),
+    );
+  });
+
+  it('applies a legal UCI promotion move', () => {
+    const gameState = loadGameStateFromFenOrThrow(
+      '7k/4P3/8/8/8/8/8/4K3 w - - 0 1',
+    );
+
+    const result = applyUciMove(gameState, 'e7e8q');
+
+    expect(result).toEqual({
+      ok: true,
+      gameState: {
+        fen: '4Q2k/8/8/8/8/8/8/4K3 b - - 0 1',
+      },
+      move: {
+        from: 'e7',
+        to: 'e8',
+        promotion: 'queen',
+        uci: 'e7e8q',
+      },
+    });
+  });
+
   it('rejects illegal moves without throwing', () => {
     const gameState = createInitialGameState();
 
@@ -190,11 +250,15 @@ describe('chessRules', () => {
 });
 
 function getGameStatusFromFen(fen: string) {
+  return getGameStatus(loadGameStateFromFenOrThrow(fen));
+}
+
+function loadGameStateFromFenOrThrow(fen: string) {
   const result = loadGameStateFromFen(fen);
 
   if (!result.ok) {
     throw new Error(`Expected valid FEN: ${fen}`);
   }
 
-  return getGameStatus(result.gameState);
+  return result.gameState;
 }

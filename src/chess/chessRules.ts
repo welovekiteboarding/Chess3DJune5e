@@ -11,6 +11,7 @@ import type {
   ChessPiecePlacement,
   ChessPlayer,
   ChessPromotionPiece,
+  ChessPromotionPieceCode,
   ChessSquare,
   ChessUciMove,
 } from './chessTypes';
@@ -25,6 +26,24 @@ const FEN_PIECE_MAP: Record<string, ChessPiece> = {
   r: 'rook',
   q: 'queen',
   k: 'king',
+};
+const PROMOTION_PIECE_TO_UCI_MAP: Record<
+  ChessPromotionPiece,
+  ChessPromotionPieceCode
+> = {
+  queen: 'q',
+  rook: 'r',
+  bishop: 'b',
+  knight: 'n',
+};
+const UCI_TO_PROMOTION_PIECE_MAP: Record<
+  ChessPromotionPieceCode,
+  ChessPromotionPiece
+> = {
+  q: 'queen',
+  r: 'rook',
+  b: 'bishop',
+  n: 'knight',
 };
 
 type ChessJsMove = {
@@ -72,14 +91,14 @@ export function getLegalMoves(
       from: move.from as ChessSquare,
       to: move.to as ChessSquare,
       ...(move.promotion
-        ? { promotion: move.promotion as ChessPromotionPiece }
+        ? { promotion: toPromotionPiece(move.promotion) }
         : {}),
       san: move.san,
       uci: toUciMove({
         from: move.from as ChessSquare,
         to: move.to as ChessSquare,
         ...(move.promotion
-          ? { promotion: move.promotion as ChessPromotionPiece }
+          ? { promotion: toPromotionPiece(move.promotion) }
           : {}),
       }),
     }));
@@ -99,7 +118,9 @@ export function applyMove(
   chess.move({
     from: legalMove.from,
     to: legalMove.to,
-    ...(legalMove.promotion ? { promotion: legalMove.promotion } : {}),
+    ...(legalMove.promotion
+      ? { promotion: toPromotionPieceCode(legalMove.promotion) }
+      : {}),
   });
 
   return {
@@ -230,7 +251,8 @@ function findLegalMove(chess: Chess, move: ChessMove): ChessJsMove | null {
 
   const matchingMove = legalMoves.find(
     (candidate) =>
-      candidate.to === move.to && candidate.promotion === move.promotion,
+      candidate.to === move.to &&
+      toOptionalPromotionPiece(candidate.promotion) === move.promotion,
   );
 
   if (!matchingMove) {
@@ -241,14 +263,16 @@ function findLegalMove(chess: Chess, move: ChessMove): ChessJsMove | null {
     from: matchingMove.from as ChessSquare,
     to: matchingMove.to as ChessSquare,
     ...(matchingMove.promotion
-      ? { promotion: matchingMove.promotion as ChessPromotionPiece }
+      ? { promotion: toPromotionPiece(matchingMove.promotion) }
       : {}),
     san: matchingMove.san,
   };
 }
 
 function toUciMove(move: ChessMove): ChessUciMove {
-  return `${move.from}${move.to}${move.promotion ?? ''}` as ChessUciMove;
+  return `${move.from}${move.to}${
+    move.promotion ? toPromotionPieceCode(move.promotion) : ''
+  }` as ChessUciMove;
 }
 
 function parseUciMove(uciMove: string): ChessMove | null {
@@ -263,8 +287,30 @@ function parseUciMove(uciMove: string): ChessMove | null {
   return {
     from: from as ChessSquare,
     to: to as ChessSquare,
-    ...(promotion ? { promotion: promotion as ChessPromotionPiece } : {}),
+    ...(promotion
+      ? {
+          promotion: UCI_TO_PROMOTION_PIECE_MAP[
+            promotion as ChessPromotionPieceCode
+          ],
+        }
+      : {}),
   };
+}
+
+function toPromotionPieceCode(
+  promotion: ChessPromotionPiece,
+): ChessPromotionPieceCode {
+  return PROMOTION_PIECE_TO_UCI_MAP[promotion];
+}
+
+function toPromotionPiece(promotion: string): ChessPromotionPiece {
+  return UCI_TO_PROMOTION_PIECE_MAP[promotion as ChessPromotionPieceCode];
+}
+
+function toOptionalPromotionPiece(
+  promotion?: string,
+): ChessPromotionPiece | undefined {
+  return promotion ? toPromotionPiece(promotion) : undefined;
 }
 
 function isChessSquare(square: string): square is ChessSquare {

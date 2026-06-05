@@ -8,23 +8,31 @@ import {
   getGameStatus,
   getLegalMoves,
   getTurn,
+  loadGameStateFromFen,
 } from '../chess/chessRules';
-import type {
-  ChessAppliedMove,
-  ChessGameState,
-  ChessGameStatus,
-  ChessMove,
-  ChessMoveResult,
-  ChessPlayer,
-  ChessPromotionPiece,
-  ChessSquare,
-  ChessUciMove,
+import {
+  CHESS_PROMOTION_PIECES,
+  type ChessAppliedMove,
+  type ChessGameState,
+  type ChessGameStatus,
+  type ChessMove,
+  type ChessMoveResult,
+  type ChessPlayer,
+  type ChessPromotionPiece,
+  type ChessSquare,
+  type ChessUciMove,
 } from '../chess/chessTypes';
 import type { AiDifficulty, AsyncEngineAdapter } from '../engine/engineTypes';
 
 export interface GameMoveRecord {
   player: 'human' | 'ai';
   uci: ChessUciMove;
+}
+
+export interface PendingPromotionState {
+  from: ChessSquare;
+  to: ChessSquare;
+  choices: ChessPromotionPiece[];
 }
 
 export type GameMoveAttemptResult =
@@ -41,6 +49,7 @@ export interface GameStoreState {
   currentFen: string;
   selectedSquare: ChessSquare | null;
   legalDestinationSquares: ChessSquare[];
+  pendingPromotion: PendingPromotionState | null;
   moveHistory: GameMoveRecord[];
   gameStatus: ChessGameStatus;
   humanSide: ChessPlayer;
@@ -54,6 +63,10 @@ export interface GameStoreState {
     to: ChessSquare,
     promotion?: ChessPromotionPiece,
   ) => GameMoveAttemptResult;
+  completePendingPromotion: (
+    promotion: ChessPromotionPiece,
+  ) => GameMoveAttemptResult;
+  cancelPendingPromotion: () => void;
   startNewGame: () => void;
   setAiDifficulty: (difficulty: AiDifficulty) => Promise<void>;
   requestAiMove: () => Promise<GameMoveAttemptResult>;
@@ -64,6 +77,7 @@ export interface CreateGameStoreOptions {
   engine: AsyncEngineAdapter;
   humanSide?: ChessPlayer;
   aiDifficulty?: AiDifficulty;
+  initialFen?: string;
 }
 
 export type GameStore = ReturnType<typeof createGameStore>;
@@ -78,7 +92,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
   const humanSide = options.humanSide ?? 'white';
   const aiSide = humanSide === 'white' ? 'black' : 'white';
   const initialDifficulty = options.aiDifficulty ?? 'medium';
-  const initialGameState = createInitialGameState();
+  const initialGameState = resolveInitialGameState(options.initialFen);
   let engineRequestVersion = 0;
 
   const invalidatePendingEngineRequest = () => {
@@ -104,6 +118,11 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
     selectSquare: (square) => {
       const state = get();
+
+      if (state.pendingPromotion) {
+        return;
+      }
+
       const gameState = getGameState(state);
 
       if (getTurn(gameState) !== state.humanSide) {
@@ -132,6 +151,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
     attemptHumanMove: (to, promotion) => {
       const state = get();
 
+      if (state.pendingPromotion) {
+        return failMoveAttempt(set, 'A promotion choice is already pending.');
+      }
+
       if (!state.selectedSquare) {
         return failMoveAttempt(set, 'No square selected.');
       }
@@ -140,6 +163,30 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       if (getTurn(gameState) !== state.humanSide) {
         return failMoveAttempt(set, 'It is not the human side to move.');
+      }
+
+      if (
+        !promotion &&
+        moveRequiresPromotion(gameState, {
+          from: state.selectedSquare,
+          to,
+        })
+      ) {
+        set({
+          selectedSquare: null,
+          legalDestinationSquares: [],
+          pendingPromotion: {
+            from: state.selectedSquare,
+            to,
+            choices: [...CHESS_PROMOTION_PIECES],
+          },
+          latestError: null,
+        });
+
+        return {
+          ok: false,
+          error: 'Human promotion piece selection is required.',
+        };
       }
 
       return applyValidatedMove({
@@ -154,9 +201,36 @@ export function createGameStore(options: CreateGameStoreOptions) {
       });
     },
 
+    completePendingPromotion: (promotion) => {
+      const state = get();
+      const pendingPromotion = state.pendingPromotion;
+
+      if (!pendingPromotion) {
+        return failMoveAttempt(set, 'No promotion choice is pending.');
+      }
+
+      return applyValidatedMove({
+        get,
+        set,
+        move: {
+          from: pendingPromotion.from,
+          to: pendingPromotion.to,
+          promotion,
+        },
+        player: 'human',
+      });
+    },
+
+    cancelPendingPromotion: () => {
+      set({
+        pendingPromotion: null,
+        latestError: null,
+      });
+    },
+
     startNewGame: () => {
       cancelPendingEngineRequest();
-      const nextGameState = createInitialGameState();
+      const nextGameState = initialGameState;
 
       set((state) => ({
         ...buildStateSnapshot({
@@ -384,6 +458,7 @@ function buildStateSnapshot({
     currentFen: getFen(gameState),
     selectedSquare: null,
     legalDestinationSquares: [],
+    pendingPromotion: null,
     moveHistory,
     gameStatus: getGameStatus(gameState),
     humanSide,
@@ -396,6 +471,7 @@ function buildStateSnapshot({
     | 'currentFen'
     | 'selectedSquare'
     | 'legalDestinationSquares'
+    | 'pendingPromotion'
     | 'moveHistory'
     | 'gameStatus'
     | 'humanSide'
@@ -415,6 +491,29 @@ function getGameState(
   return {
     fen: state.currentFen,
   };
+}
+
+function resolveInitialGameState(initialFen?: string): ChessGameState {
+  if (!initialFen) {
+    return createInitialGameState();
+  }
+
+  const result = loadGameStateFromFen(initialFen);
+
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+
+  return result.gameState;
+}
+
+function moveRequiresPromotion(
+  gameState: ChessGameState,
+  move: Pick<ChessMove, 'from' | 'to'>,
+): boolean {
+  return getLegalMoves(gameState, move.from).some(
+    (legalMove) => legalMove.to === move.to && legalMove.promotion,
+  );
 }
 
 function canRequestMove(gameStatus: ChessGameStatus): boolean {
