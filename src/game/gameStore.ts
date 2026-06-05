@@ -77,6 +77,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
   const aiSide = humanSide === 'white' ? 'black' : 'white';
   const initialDifficulty = options.aiDifficulty ?? 'medium';
   const engine = options.engine ?? createNoopEngine(initialDifficulty);
+  const initialGameState = createInitialGameState();
   let engineRequestVersion = 0;
 
   const invalidatePendingEngineRequest = () => {
@@ -88,14 +89,18 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
     void engine.cancelSearch().catch(() => undefined);
   };
 
-  return createStore<GameStoreState>()((set, get) => ({
+  const store = createStore<GameStoreState>()((set, get) => ({
     ...buildStateSnapshot({
-      gameState: createInitialGameState(),
+      gameState: initialGameState,
       humanSide,
       aiSide,
       aiDifficulty: initialDifficulty,
       moveHistory: [],
-      isEngineThinking: false,
+      isEngineThinking: shouldRequestAiMove({
+        aiSide,
+        gameState: initialGameState,
+        gameStatus: getGameStatus(initialGameState),
+      }),
       latestError: null,
     }),
 
@@ -164,17 +169,31 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
 
     startNewGame: () => {
       cancelPendingEngineRequest();
+      const nextGameState = createInitialGameState();
+
       set((state) => ({
         ...buildStateSnapshot({
-          gameState: createInitialGameState(),
+          gameState: nextGameState,
           humanSide: state.humanSide,
           aiSide: state.aiSide,
           aiDifficulty: state.aiDifficulty,
           moveHistory: [],
-          isEngineThinking: false,
+          isEngineThinking: shouldRequestAiMove({
+            aiSide: state.aiSide,
+            gameState: nextGameState,
+            gameStatus: getGameStatus(nextGameState),
+          }),
           latestError: null,
         }),
       }));
+
+      requestAiMove({
+        engine,
+        get,
+        set,
+        invalidatePendingEngineRequest,
+        getCurrentEngineRequestVersion: () => engineRequestVersion,
+      });
     },
 
     setAiDifficulty: async (difficulty) => {
@@ -213,6 +232,16 @@ export function createGameStore(options: CreateGameStoreOptions = {}) {
       });
     },
   }));
+
+  requestAiMove({
+    engine,
+    get: store.getState,
+    set: store.setState,
+    invalidatePendingEngineRequest,
+    getCurrentEngineRequestVersion: () => engineRequestVersion,
+  });
+
+  return store;
 }
 
 function applyValidatedMove({
@@ -257,9 +286,9 @@ function applyMoveResult({
 
   const state = get();
   const nextGameStatus = getGameStatus(result.gameState);
-  const shouldRequestAiMove =
+  const shouldRequestAiMoveAfterMove =
     player === 'human' &&
-    shouldRequestAiMoveAfterHumanMove({
+    shouldRequestAiMove({
       aiSide: state.aiSide,
       gameState: result.gameState,
       gameStatus: nextGameStatus,
@@ -278,7 +307,7 @@ function applyMoveResult({
           uci: result.move.uci,
         },
       ],
-      isEngineThinking: shouldRequestAiMove,
+      isEngineThinking: shouldRequestAiMoveAfterMove,
       latestError: null,
     }),
   });
@@ -431,7 +460,7 @@ function isCurrentEngineRequest(
   );
 }
 
-function shouldRequestAiMoveAfterHumanMove({
+function shouldRequestAiMove({
   aiSide,
   gameState,
   gameStatus,

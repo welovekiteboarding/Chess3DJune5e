@@ -23,6 +23,42 @@ describe('gameStore', () => {
     expect(store.getState().latestError).toBeNull();
   });
 
+  it('requests the opening AI move when the human plays black', async () => {
+    const engine = createDeferredEngine();
+    const store = createGameStore({
+      engine,
+      humanSide: 'black',
+    });
+
+    expect(store.getState().humanSide).toBe('black');
+    expect(store.getState().aiSide).toBe('white');
+    expect(store.getState().isEngineThinking).toBe(true);
+    expect(engine.requestBestMove).toHaveBeenCalledWith({
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    });
+
+    engine.resolveBestMove({
+      move: 'e2e4',
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    });
+
+    await vi.waitFor(() => {
+      expect(store.getState().currentFen).toBe(
+        'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      );
+    });
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'ai',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBeNull();
+  });
+
   it('selects a legal human piece and exposes its legal destinations', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -228,6 +264,46 @@ describe('gameStore', () => {
     });
     expect(store.getState().isEngineThinking).toBe(false);
     expect(store.getState().latestError).toBeNull();
+  });
+
+  it('starts a new black-side game by requesting the opening AI move again', async () => {
+    const engine = createDeferredEngine();
+    const store = createGameStore({
+      engine,
+      humanSide: 'black',
+    });
+
+    engine.resolveBestMove({
+      move: 'e2e4',
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    });
+
+    await vi.waitFor(() => {
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'ai',
+          uci: 'e2e4',
+        },
+      ]);
+    });
+
+    store.getState().startNewGame();
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().gameStatus).toEqual({
+      kind: 'ongoing',
+    });
+    expect(store.getState().isEngineThinking).toBe(true);
+    expect(engine.requestBestMove).toHaveBeenCalledTimes(2);
+    expect(engine.requestBestMove).toHaveBeenLastCalledWith({
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    });
   });
 });
 
