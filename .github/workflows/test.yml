@@ -1,0 +1,15 @@
+name: Test
+
+on:
+  pull_request:
+
+jobs:
+  bootstrap-proof:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify bootstrap proof artifact exists
+        run: test -f docs/live-proof-setup-run-merge.md
