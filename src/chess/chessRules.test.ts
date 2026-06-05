@@ -3,6 +3,7 @@ import {
   applyUciMove,
   createInitialGameState,
   getFen,
+  getGameDisplayState,
   getGameStatus,
   getLegalMoves,
   getPiecePlacementsFromFen,
@@ -245,6 +246,30 @@ describe('chessRules', () => {
     ).toEqual({
       kind: 'draw',
       reason: 'insufficient-material',
+    });
+  });
+
+  it('exposes display-ready turn and status details from chess state', () => {
+    expect(getGameDisplayState(createInitialGameState())).toEqual({
+      sideToMove: 'white',
+      sideToMoveLabel: 'White to move',
+      gameStatus: {
+        kind: 'ongoing',
+      },
+      gameStatusLabel: 'Ongoing',
+    });
+
+    expect(
+      getGameDisplayState(
+        loadGameStateFromFenOrThrow('7k/6Q1/6K1/8/8/8/8/8 b - - 0 1'),
+      ),
+    ).toEqual({
+      sideToMove: 'black',
+      sideToMoveLabel: 'Black to move',
+      gameStatus: {
+        kind: 'checkmate',
+      },
+      gameStatusLabel: 'Checkmate',
     });
   });
 });

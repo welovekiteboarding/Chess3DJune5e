@@ -20,8 +20,11 @@ describe('gameStore', () => {
     expect(store.getState().gameStatus).toEqual({
       kind: 'ongoing',
     });
+    expect(store.getState().gameStatusLabel).toBe('Ongoing');
     expect(store.getState().humanSide).toBe('white');
     expect(store.getState().aiSide).toBe('black');
+    expect(store.getState().sideToMove).toBe('white');
+    expect(store.getState().sideToMoveLabel).toBe('White to move');
     expect(store.getState().aiDifficulty).toBe('medium');
     expect(store.getState().isEngineThinking).toBe(false);
     expect(store.getState().latestError).toBeNull();
@@ -112,6 +115,12 @@ describe('gameStore', () => {
         uci: 'e2e4',
       },
     ]);
+    expect(store.getState().gameStatus).toEqual({
+      kind: 'ongoing',
+    });
+    expect(store.getState().gameStatusLabel).toBe('Ongoing');
+    expect(store.getState().sideToMove).toBe('black');
+    expect(store.getState().sideToMoveLabel).toBe('Black to move');
     expect(store.getState().selectedSquare).toBeNull();
     expect(store.getState().legalDestinationSquares).toEqual([]);
     expect(getPiecePlacementsFromFen(store.getState().currentFen)).toEqual(
@@ -280,6 +289,22 @@ describe('gameStore', () => {
     expect(store.getState().latestError).toBe('Illegal move: e7e4');
   });
 
+  it('exposes checkmate status details from an initial FEN without requesting an engine move', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      initialFen: '7k/6Q1/6K1/8/8/8/8/8 b - - 0 1',
+    });
+
+    expect(store.getState().sideToMove).toBe('black');
+    expect(store.getState().sideToMoveLabel).toBe('Black to move');
+    expect(store.getState().gameStatus).toEqual({
+      kind: 'checkmate',
+    });
+    expect(store.getState().gameStatusLabel).toBe('Checkmate');
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
   it('resets back to the starting position', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -298,6 +323,9 @@ describe('gameStore', () => {
     expect(store.getState().gameStatus).toEqual({
       kind: 'ongoing',
     });
+    expect(store.getState().gameStatusLabel).toBe('Ongoing');
+    expect(store.getState().sideToMove).toBe('white');
+    expect(store.getState().sideToMoveLabel).toBe('White to move');
     expect(store.getState().isEngineThinking).toBe(false);
     expect(store.getState().latestError).toBeNull();
   });

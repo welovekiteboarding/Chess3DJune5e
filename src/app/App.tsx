@@ -52,7 +52,7 @@ export interface AppProps {
 }
 
 export function App({
-  autoRequestAiMoves = false,
+  autoRequestAiMoves = true,
   boardSceneCanvasBoundary,
   store: providedStore,
 }: AppProps = {}) {
@@ -78,6 +78,7 @@ export function App({
     cancelPendingPromotion,
     currentFen,
     gameStatus,
+    gameStatusLabel,
     humanSide,
     isEngineThinking,
     latestError,
@@ -88,13 +89,13 @@ export function App({
     selectSquare,
     selectedSquare,
     setAiDifficulty,
+    sideToMove,
+    sideToMoveLabel,
     startNewGame,
     attemptHumanMove,
   } = useStore(store, (state) => state);
 
-  const sideToMove = getSideToMove(currentFen);
   const piecePlacements = getPiecePlacementsFromFen(currentFen);
-  const statusLabel = formatGameStatus(gameStatus);
   const moveHistoryLabels = moveHistory.map((move, index) =>
     `${index + 1}. ${move.player} ${move.uci}`,
   );
@@ -173,7 +174,7 @@ export function App({
         >
           <div className="card-chrome">
             <span>Board</span>
-            <span>{capitalizeLabel(sideToMove)} to move</span>
+            <span>{sideToMoveLabel}</span>
           </div>
           <BoardScene
             CanvasBoundary={boardSceneCanvasBoundary}
@@ -192,7 +193,7 @@ export function App({
         >
           <div className="card-chrome">
             <span>Controls</span>
-            <span>{statusLabel}</span>
+            <span>{gameStatusLabel}</span>
           </div>
           <div className="panel-scroll">
             {pendingPromotion ? (
@@ -212,8 +213,8 @@ export function App({
               onDifficultyChange={handleDifficultyChange}
               onNewGame={startNewGame}
               selectedDifficulty={aiDifficulty}
-              sideToMove={capitalizeLabel(sideToMove)}
-              status={statusLabel}
+              sideToMove={sideToMoveLabel}
+              status={gameStatusLabel}
             />
           </div>
         </section>
@@ -222,31 +223,8 @@ export function App({
   );
 }
 
-function formatGameStatus(gameStatus: ChessGameStatus): string {
-  switch (gameStatus.kind) {
-    case 'ongoing':
-      return 'In progress';
-    case 'check':
-      return 'Check';
-    case 'checkmate':
-      return 'Checkmate';
-    case 'stalemate':
-      return 'Stalemate';
-    case 'draw':
-      return gameStatus.reason === 'insufficient-material'
-        ? 'Draw by insufficient material'
-        : 'Draw';
-    default:
-      return 'In progress';
-  }
-}
-
 function canAiMove(gameStatus: ChessGameStatus): boolean {
   return gameStatus.kind === 'ongoing' || gameStatus.kind === 'check';
-}
-
-function getSideToMove(fen: string): 'white' | 'black' {
-  return fen.split(' ')[1] === 'b' ? 'black' : 'white';
 }
 
 function capitalizeLabel(value: string): string {

@@ -5,7 +5,7 @@ import {
   applyUciMove,
   createInitialGameState,
   getFen,
-  getGameStatus,
+  getGameDisplayState,
   getLegalMoves,
   getTurn,
   loadGameStateFromFen,
@@ -52,8 +52,11 @@ export interface GameStoreState {
   pendingPromotion: PendingPromotionState | null;
   moveHistory: GameMoveRecord[];
   gameStatus: ChessGameStatus;
+  gameStatusLabel: string;
   humanSide: ChessPlayer;
   aiSide: ChessPlayer;
+  sideToMove: ChessPlayer;
+  sideToMoveLabel: string;
   aiDifficulty: AiDifficulty;
   isEngineThinking: boolean;
   latestError: string | null;
@@ -454,15 +457,20 @@ function buildStateSnapshot({
   isEngineThinking: boolean;
   latestError: string | null;
 }) {
+  const displayState = getGameDisplayState(gameState);
+
   return {
     currentFen: getFen(gameState),
     selectedSquare: null,
     legalDestinationSquares: [],
     pendingPromotion: null,
     moveHistory,
-    gameStatus: getGameStatus(gameState),
+    gameStatus: displayState.gameStatus,
+    gameStatusLabel: displayState.gameStatusLabel,
     humanSide,
     aiSide,
+    sideToMove: displayState.sideToMove,
+    sideToMoveLabel: displayState.sideToMoveLabel,
     aiDifficulty,
     isEngineThinking,
     latestError,
@@ -474,8 +482,11 @@ function buildStateSnapshot({
     | 'pendingPromotion'
     | 'moveHistory'
     | 'gameStatus'
+    | 'gameStatusLabel'
     | 'humanSide'
     | 'aiSide'
+    | 'sideToMove'
+    | 'sideToMoveLabel'
     | 'aiDifficulty'
     | 'isEngineThinking'
     | 'latestError'

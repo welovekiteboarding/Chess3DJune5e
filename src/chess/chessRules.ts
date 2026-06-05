@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 
 import type {
+  ChessGameDisplayState,
   ChessGameState,
   ChessGameStatus,
   ChessLegalMove,
@@ -191,6 +192,20 @@ export function getGameStatus(gameState: ChessGameState): ChessGameStatus {
   };
 }
 
+export function getGameDisplayState(
+  gameState: ChessGameState,
+): ChessGameDisplayState {
+  const sideToMove = getTurn(gameState);
+  const gameStatus = getGameStatus(gameState);
+
+  return {
+    sideToMove,
+    sideToMoveLabel: toSideToMoveLabel(sideToMove),
+    gameStatus,
+    gameStatusLabel: toGameStatusLabel(gameStatus),
+  };
+}
+
 export function getPiecePlacementsFromFen(fen: string): ChessPiecePlacement[] {
   const loadResult = loadGameStateFromFen(fen);
 
@@ -341,6 +356,31 @@ function createPiecePlacement(
     color,
     piece,
   };
+}
+
+function toSideToMoveLabel(player: ChessPlayer): string {
+  return `${capitalizePlayer(player)} to move`;
+}
+
+function toGameStatusLabel(gameStatus: ChessGameStatus): string {
+  switch (gameStatus.kind) {
+    case 'ongoing':
+      return 'Ongoing';
+    case 'check':
+      return 'Check';
+    case 'checkmate':
+      return 'Checkmate';
+    case 'stalemate':
+      return 'Stalemate';
+    case 'draw':
+      return 'Draw';
+    default:
+      return 'Ongoing';
+  }
+}
+
+function capitalizePlayer(player: ChessPlayer): string {
+  return `${player.slice(0, 1).toUpperCase()}${player.slice(1)}`;
 }
 
 function invalidFenResult(fen: string): ChessLoadResult {
