@@ -5,7 +5,9 @@ import type {
   BestMoveResponse,
   EngineCancellationReason,
   EngineLifecycleState,
+  StockfishSearchSettings,
 } from './engineTypes';
+import { STOCKFISH_SEARCH_SETTINGS_BY_DIFFICULTY } from './engineTypes';
 import {
   isReadyOkLine,
   isUciOkLine,
@@ -14,12 +16,6 @@ import {
   type ParsedInfo,
 } from './stockfishProtocol';
 import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-asm.js?url';
-
-const GO_COMMAND_BY_DIFFICULTY: Record<AiDifficulty, string> = {
-  easy: 'go depth 6',
-  medium: 'go depth 10',
-  hard: 'go depth 14',
-};
 
 type LineListener = (line: string) => void;
 
@@ -444,7 +440,14 @@ export async function createStockfishTransportFromPackage(
 }
 
 export function getGoCommandForDifficulty(difficulty: AiDifficulty): string {
-  return GO_COMMAND_BY_DIFFICULTY[difficulty];
+  const settings = getSearchSettingsForDifficulty(difficulty);
+  return `go depth ${settings.depth}`;
+}
+
+export function getSearchSettingsForDifficulty(
+  difficulty: AiDifficulty,
+): StockfishSearchSettings {
+  return STOCKFISH_SEARCH_SETTINGS_BY_DIFFICULTY[difficulty];
 }
 
 function createBrowserStockfishWorker(): StockfishWorkerLike {
