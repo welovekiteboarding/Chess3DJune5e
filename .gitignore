@@ -2,5 +2,7 @@
 /deps/
 /cover/
 /.symphony/
+/dist/
+/node_modules/
 erl_crash.dump
 .DS_Store
