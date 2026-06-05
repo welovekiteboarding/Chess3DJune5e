@@ -33,9 +33,21 @@ describe('gameStore', () => {
     store.getState().selectSquare('e2');
 
     expect(store.getState().selectedSquare).toBe('e2');
-    expect(store.getState().legalDestinationSquares).toEqual(
-      expect.arrayContaining(['e3', 'e4']),
-    );
+    expect(store.getState().legalDestinationSquares).toEqual(['e3', 'e4']);
+    expect(store.getState().legalDestinationSquares).not.toContain('e5');
+  });
+
+  it('clears the selected square and legal destinations without applying a move', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    store.getState().selectSquare('e2');
+    store.getState().clearSelection();
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(store.getState().moveHistory).toEqual([]);
   });
 
   it('does not select an opponent piece when it is not that side to move', () => {

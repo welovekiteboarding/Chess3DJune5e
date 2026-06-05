@@ -62,6 +62,7 @@ export function BoardScene({
   className,
 }: BoardSceneProps) {
   const legalDestinationSet = new Set(legalDestinationSquares);
+  const legalDestinationMarkers = Array.from(legalDestinationSet);
 
   return (
     <section aria-label="3D chess board scene" className={className}>
@@ -148,6 +149,7 @@ export function BoardScene({
                 data-piece={pieceDescription}
                 data-selected={String(isSelected)}
                 data-square={boardSquare.square}
+                data-testid={`board-square-${boardSquare.square}`}
                 key={boardSquare.square}
                 onClick={() => onSquareSelect?.(boardSquare.square)}
                 type="button"
@@ -157,6 +159,17 @@ export function BoardScene({
             );
           })}
         </div>
+        <ul aria-label="Legal destination squares">
+          {legalDestinationMarkers.map((square) => (
+            <li
+              data-square={square}
+              data-testid={`legal-destination-square-${square}`}
+              key={square}
+            >
+              {square}
+            </li>
+          ))}
+        </ul>
         <ul aria-label="Piece placements">
           {piecePlacements.map((piecePlacement) => (
             <li

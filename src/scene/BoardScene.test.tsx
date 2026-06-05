@@ -49,10 +49,15 @@ describe('BoardScene', () => {
       'aria-pressed',
       'true',
     );
-    expect(screen.getByRole('button', { name: 'e4 square' })).toHaveAttribute(
-      'data-legal-destination',
-      'true',
+    expect(screen.getByTestId('legal-destination-square-e4')).toHaveAttribute(
+      'data-square',
+      'e4',
     );
+    expect(screen.getByTestId('legal-destination-square-e5')).toHaveAttribute(
+      'data-square',
+      'e5',
+    );
+    expect(screen.queryByTestId('legal-destination-square-e2')).not.toBeInTheDocument();
     expect(screen.getByText('white pawn on e2')).toBeInTheDocument();
     expect(screen.getByText('black pawn on e7')).toBeInTheDocument();
 
@@ -86,5 +91,29 @@ describe('BoardScene', () => {
       'data-square',
       'e8',
     );
+  });
+
+  it('removes structural legal-destination markers when no legal squares are provided', () => {
+    const { rerender } = render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={['e3', 'e4']}
+        selectedSquare="e2"
+      />,
+    );
+
+    expect(screen.getByTestId('legal-destination-square-e3')).toBeInTheDocument();
+    expect(screen.getByTestId('legal-destination-square-e4')).toBeInTheDocument();
+
+    rerender(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(screen.queryByTestId('legal-destination-square-e3')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('legal-destination-square-e4')).not.toBeInTheDocument();
   });
 });

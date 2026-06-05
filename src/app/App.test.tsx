@@ -58,9 +58,43 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
 
     expect(store.getState().selectedSquare).toBe('e2');
-    expect(store.getState().legalDestinationSquares).toEqual(
-      expect.arrayContaining(['e3', 'e4']),
+    expect(store.getState().legalDestinationSquares).toEqual(['e3', 'e4']);
+    expect(screen.getByTestId('legal-destination-square-e3')).toHaveAttribute(
+      'data-square',
+      'e3',
     );
+    expect(screen.getByTestId('legal-destination-square-e4')).toHaveAttribute(
+      'data-square',
+      'e4',
+    );
+    expect(screen.queryByTestId('legal-destination-square-e5')).not.toBeInTheDocument();
+  });
+
+  it('clears legal-destination markers when the selected square is clicked again', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+
+    expect(screen.getByTestId('legal-destination-square-e3')).toBeInTheDocument();
+    expect(screen.getByTestId('legal-destination-square-e4')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(screen.queryByTestId('legal-destination-square-e3')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('legal-destination-square-e4')).not.toBeInTheDocument();
   });
 
   it('does not retry AI requests in a loop after an engine failure', async () => {
