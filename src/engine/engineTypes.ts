@@ -36,3 +36,5 @@ export interface AsyncEngineAdapter {
   cancelSearch(reason?: EngineCancellationReason): Promise<void>;
   dispose(): Promise<void>;
 }
+
+export type EngineFactory = () => AsyncEngineAdapter;

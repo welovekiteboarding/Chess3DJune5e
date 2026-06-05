@@ -1,20 +1,15 @@
 import type { ComponentType } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useStore } from 'zustand';
 
 import '../styles/globals.css';
 import type { ChessGameStatus, ChessSquare } from '../chess/chessTypes';
 import { getPiecePlacementsFromFen } from '../chess/chessRules';
 import type { AiDifficulty } from '../engine/engineTypes';
-import {
-  createStockfishEngine,
-  type StockfishWorkerLike,
-} from '../engine/stockfishEngine';
-import { createGameStore, type GameStore } from '../game/gameStore';
+import type { GameStore } from '../game/gameStore';
 import { BoardScene, type BoardSceneCanvasProps } from '../scene/BoardScene';
 import { GamePanel } from '../ui/GamePanel';
 import { PromotionDialog } from '../ui/PromotionDialog';
-import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-asm.js?url';
 
 const difficultyOptions = [
   { value: 'easy', label: 'Easy' },
@@ -22,54 +17,17 @@ const difficultyOptions = [
   { value: 'hard', label: 'Hard' },
 ] as const;
 
-interface OwnedGameStoreRuntime {
-  engine: ReturnType<typeof createStockfishEngine>;
-  store: GameStore;
-}
-
-function createStockfishWorker(): StockfishWorkerLike {
-  return new Worker(stockfishWorkerUrl, {
-    name: 'stockfish-engine',
-    type: 'classic',
-  }) as StockfishWorkerLike;
-}
-
-function createOwnedGameStoreRuntime(): OwnedGameStoreRuntime {
-  const engine = createStockfishEngine({
-    workerFactory: createStockfishWorker,
-  });
-
-  return {
-    engine,
-    store: createGameStore({ engine }),
-  };
-}
-
 export interface AppProps {
   autoRequestAiMoves?: boolean;
   boardSceneCanvasBoundary?: ComponentType<BoardSceneCanvasProps>;
-  store?: GameStore;
+  store: GameStore;
 }
 
 export function App({
   autoRequestAiMoves = true,
   boardSceneCanvasBoundary,
-  store: providedStore,
-}: AppProps = {}) {
-  const [ownedRuntime] = useState<OwnedGameStoreRuntime | null>(() => {
-    if (providedStore) {
-      return null;
-    }
-
-    return createOwnedGameStoreRuntime();
-  });
-
-  const store = providedStore ?? ownedRuntime?.store;
-
-  if (!store) {
-    throw new Error('The game store could not be initialized.');
-  }
-
+  store,
+}: AppProps) {
   const {
     aiDifficulty,
     aiSide,
@@ -99,16 +57,6 @@ export function App({
   const moveHistoryLabels = moveHistory.map((move, index) =>
     `${index + 1}. ${move.player} ${move.uci}`,
   );
-
-  useEffect(() => {
-    if (providedStore || !ownedRuntime) {
-      return;
-    }
-
-    return () => {
-      void ownedRuntime.engine.dispose();
-    };
-  }, [ownedRuntime, providedStore]);
 
   useEffect(() => {
     if (!autoRequestAiMoves) {
