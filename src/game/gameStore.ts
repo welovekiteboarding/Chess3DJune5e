@@ -97,9 +97,13 @@ export function createGameStore(options: CreateGameStoreOptions) {
   const initialDifficulty = options.aiDifficulty ?? 'medium';
   const initialGameState = resolveInitialGameState(options.initialFen);
   let engineRequestVersion = 0;
+  let pendingAiRequestFen: string | null = null;
+  let pendingAiRequestPromise: Promise<GameMoveAttemptResult> | null = null;
 
   const invalidatePendingEngineRequest = () => {
     engineRequestVersion += 1;
+    pendingAiRequestFen = null;
+    pendingAiRequestPromise = null;
     return engineRequestVersion;
   };
 
@@ -266,6 +270,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
       const state = get();
       const gameState = getGameState(state);
 
+      if (state.pendingPromotion) {
+        return failMoveAttempt(set, 'A promotion choice is pending.');
+      }
+
       if (getTurn(gameState) !== state.aiSide) {
         return failMoveAttempt(set, 'It is not the AI side to move.');
       }
@@ -275,6 +283,14 @@ export function createGameStore(options: CreateGameStoreOptions) {
       }
 
       const requestFen = state.currentFen;
+
+      if (
+        pendingAiRequestFen === requestFen &&
+        pendingAiRequestPromise
+      ) {
+        return pendingAiRequestPromise;
+      }
+
       const requestVersion = invalidatePendingEngineRequest();
 
       set({
@@ -282,64 +298,72 @@ export function createGameStore(options: CreateGameStoreOptions) {
         latestError: null,
       });
 
-      try {
-        const response = await engine.requestBestMove({
-          fen: requestFen,
-        });
+      let requestPromise: Promise<GameMoveAttemptResult> | null = null;
 
-        if (
-          !isCurrentEngineRequest(
+      requestPromise = (async (): Promise<GameMoveAttemptResult> => {
+        try {
+          const response = await engine.requestBestMove({
+            fen: requestFen,
+          });
+
+          if (
+            !isCurrentEngineRequest(
+              get,
+              requestFen,
+              requestVersion,
+              () => engineRequestVersion,
+            )
+          ) {
+            return createSupersededAiMoveAttempt();
+          }
+
+          if (response.fen !== requestFen) {
+            return failMoveAttempt(
+              set,
+              'Engine returned a best move for an unexpected position.',
+              {
+                isEngineThinking: false,
+              },
+            );
+          }
+
+          return applyMoveResult({
             get,
-            requestFen,
-            requestVersion,
-            () => engineRequestVersion,
-          )
-        ) {
-          return {
-            ok: false,
-            error: 'AI move request was superseded.',
-          };
-        }
+            set,
+            result: applyUciMove(getGameState(get()), response.move),
+            player: 'ai',
+          });
+        } catch (error) {
+          if (
+            !isCurrentEngineRequest(
+              get,
+              requestFen,
+              requestVersion,
+              () => engineRequestVersion,
+            )
+          ) {
+            return createSupersededAiMoveAttempt();
+          }
 
-        if (response.fen !== requestFen) {
           return failMoveAttempt(
             set,
-            'Engine returned a best move for an unexpected position.',
+            toErrorMessage(error, 'Failed to request AI move.'),
             {
               isEngineThinking: false,
             },
           );
+        } finally {
+          if (pendingAiRequestPromise === requestPromise) {
+            pendingAiRequestFen = null;
+            pendingAiRequestPromise = null;
+          }
         }
+      })();
 
-        return applyMoveResult({
-          get,
-          set,
-          result: applyUciMove(getGameState(get()), response.move),
-          player: 'ai',
-        });
-      } catch (error) {
-        if (
-          !isCurrentEngineRequest(
-            get,
-            requestFen,
-            requestVersion,
-            () => engineRequestVersion,
-          )
-        ) {
-          return {
-            ok: false,
-            error: 'AI move request was superseded.',
-          };
-        }
+      pendingAiRequestFen = requestFen;
+      pendingAiRequestPromise = requestPromise;
 
-        return failMoveAttempt(
-          set,
-          toErrorMessage(error, 'Failed to request AI move.'),
-          {
-            isEngineThinking: false,
-          },
-        );
-      }
+      return requestPromise;
     },
 
     applyAiMove: (uciMove) => {
@@ -437,6 +461,13 @@ function failMoveAttempt(
   return {
     ok: false,
     error,
+  };
+}
+
+function createSupersededAiMoveAttempt(): GameMoveAttemptResult {
+  return {
+    ok: false,
+    error: 'AI move request was superseded.',
   };
 }
 

@@ -264,6 +264,62 @@ describe('gameStore', () => {
     expect(store.getState().latestError).toBeNull();
   });
 
+  it('shares one in-flight AI request for the same position and applies one validated response', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    const fenBeforeAiMove = store.getState().currentFen;
+    const firstRequest = store.getState().requestAiMove();
+    const secondRequest = store.getState().requestAiMove();
+
+    expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
+    expect(engine.requestBestMove).toHaveBeenCalledWith({
+      fen: fenBeforeAiMove,
+    });
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: fenBeforeAiMove,
+      move: 'e7e5',
+    });
+
+    await expect(firstRequest).resolves.toEqual({
+      ok: true,
+      move: {
+        from: 'e7',
+        to: 'e5',
+        uci: 'e7e5',
+      },
+    });
+    await expect(secondRequest).resolves.toEqual({
+      ok: true,
+      move: {
+        from: 'e7',
+        to: 'e5',
+        uci: 'e7e5',
+      },
+    });
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+    );
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+      {
+        player: 'ai',
+        uci: 'e7e5',
+      },
+    ]);
+  });
+
   it('rejects an invalid fake AI move and records an error', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -344,5 +400,21 @@ function createFakeEngine(): AsyncEngineAdapter & {
     requestBestMove,
     async cancelSearch() {},
     async dispose() {},
+  };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error?: unknown) => void;
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return {
+    promise,
+    resolve,
+    reject,
   };
 }

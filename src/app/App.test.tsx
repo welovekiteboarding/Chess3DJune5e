@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
@@ -224,6 +225,95 @@ describe('App', () => {
     );
   });
 
+  it('auto-requests the opening AI move only once in strict mode when the human plays black', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({
+      engine,
+      humanSide: 'black',
+    });
+
+    render(
+      <StrictMode>
+        <App
+          boardSceneCanvasBoundary={TestCanvasBoundary}
+          store={store}
+        />
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
+    });
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      move: 'e2e4',
+    });
+
+    await waitFor(() =>
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'ai',
+          uci: 'e2e4',
+        },
+      ]),
+    );
+  });
+
+  it('automatically applies one AI response after a legal human move', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockResolvedValue({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    const store = createGameStore({
+      engine,
+    });
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    await waitFor(() => {
+      expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() =>
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'human',
+          uci: 'e2e4',
+        },
+        {
+          player: 'ai',
+          uci: 'e7e5',
+        },
+      ]),
+    );
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+    );
+    expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+      'data-square',
+      'e5',
+    );
+    expect(screen.getByText('2. ai e7e5')).toBeInTheDocument();
+    expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
+  });
+
   it('shows the promotion UI when the store has a pending promotion', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -345,5 +435,21 @@ function createFakeEngine(): AsyncEngineAdapter & {
     requestBestMove,
     async cancelSearch() {},
     async dispose() {},
+  };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error?: unknown) => void;
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return {
+    promise,
+    resolve,
+    reject,
   };
 }
