@@ -4,5 +4,7 @@
 /.symphony/
 /dist/
 /node_modules/
+/playwright-report/
+/test-results/
 erl_crash.dump
 .DS_Store

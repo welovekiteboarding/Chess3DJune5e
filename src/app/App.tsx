@@ -154,12 +154,12 @@ export function App({
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-testid="app-shell">
       <div className="app-backdrop" />
 
       <header className="hero-bar">
         <p className="eyebrow">Local foundation</p>
-        <h1>3D Chess</h1>
+        <h1 data-testid="app-shell-title">3D Chess</h1>
         <p className="hero-copy">
           A local-first shell that wires the board scene, game controls, and
           store state into one responsive workspace.
