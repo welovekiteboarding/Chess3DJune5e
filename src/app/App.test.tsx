@@ -359,6 +359,54 @@ describe('App', () => {
     expect(screen.getByText('Engine idle')).toBeInTheDocument();
   });
 
+  it('shows a cancel control during auto-play and cancels the pending AI move', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({
+      engine,
+    });
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Cancel AI move' }),
+      ).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel AI move' }));
+
+    expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Cancel AI move' })).not.toBeInTheDocument();
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await waitFor(() =>
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'human',
+          uci: 'e2e4',
+        },
+      ]),
+    );
+
+    expect(screen.getByText('Engine idle')).toBeInTheDocument();
+  });
+
   it('keeps the difficulty control wired to the store and engine adapter', async () => {
     const engine = createFakeEngine();
     const store = createGameStore({
@@ -494,10 +542,12 @@ describe('App', () => {
 });
 
 function createFakeEngine(): AsyncEngineAdapter & {
+  cancelSearch: ReturnType<typeof vi.fn>;
   setDifficulty: ReturnType<typeof vi.fn>;
   requestBestMove: ReturnType<typeof vi.fn>;
 } {
-  const setDifficulty = vi.fn<(difficulty: 'easy' | 'medium' | 'hard') => Promise<void>>();
+  const cancelSearch = vi.fn(async () => {});
+  const setDifficulty = vi.fn(async () => {});
   const requestBestMove = vi.fn<
     (request: { fen: string }) => Promise<BestMoveResponse>
   >();
@@ -506,7 +556,7 @@ function createFakeEngine(): AsyncEngineAdapter & {
     state: 'ready',
     setDifficulty,
     requestBestMove,
-    async cancelSearch() {},
+    cancelSearch,
     async dispose() {},
   };
 }

@@ -269,6 +269,35 @@ describe('stockfishEngine', () => {
     expect(transport.terminated).toBe(true);
   });
 
+  it('ignores a bestmove that arrives after cancellation', async () => {
+    const transport = new FakeUciTransport();
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+    });
+    const fen = '4k3/8/8/8/8/8/8/4K3 w - - 0 1';
+
+    const bestMovePromise = engine.requestBestMove({ fen });
+    void bestMovePromise.catch(() => undefined);
+
+    await waitFor(() => transport.commands.length === 1);
+    transport.emit('uciok');
+    await waitFor(() => transport.commands.length === 2);
+    transport.emit('readyok');
+    await waitFor(() => transport.commands.length === 4);
+
+    await expect(engine.cancelSearch()).resolves.toBeUndefined();
+    expect(transport.commands).toContain('stop');
+    await expect(bestMovePromise).rejects.toMatchObject({
+      name: 'StockfishSearchCancelledError',
+      reason: 'cancelled',
+    });
+
+    transport.emit('info depth 10 score cp 16', 'bestmove e2e4');
+    await flushAsyncWork();
+
+    expect(engine.state).toBe('ready');
+  });
+
   it('supports package engines that expose sendCommand and listener', async () => {
     const packageEngine = new FakeStockfishPackageEngine();
     const engine = createStockfishEngine({

@@ -406,6 +406,123 @@ describe('gameStore', () => {
     );
   });
 
+  it('cancels a pending AI move request through the engine adapter and clears thinking state immediately', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    const pendingRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+
+    store.getState().cancelAiMove();
+
+    expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBeNull();
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: false,
+      error: 'AI move request was superseded.',
+    });
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+    );
+  });
+
+  it('does not start an engine search if cancellation happens while setting difficulty', async () => {
+    const engine = createFakeEngine();
+    const deferredDifficulty = createDeferred<void>();
+    engine.setDifficulty.mockReturnValue(deferredDifficulty.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    const pendingRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+    expect(engine.setDifficulty).toHaveBeenCalledTimes(1);
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+
+    store.getState().cancelAiMove();
+
+    expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
+    expect(store.getState().isEngineThinking).toBe(false);
+
+    deferredDifficulty.resolve();
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: false,
+      error: 'AI move request was superseded.',
+    });
+
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+  });
+
+  it('ignores a late AI response that arrives after cancellation', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    const pendingRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    store.getState().cancelAiMove();
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: false,
+      error: 'AI move request was superseded.',
+    });
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().sideToMove).toBe('black');
+    expect(store.getState().isEngineThinking).toBe(false);
+  });
+
   it('applies the selected difficulty to the next AI request through the engine adapter', async () => {
     const engine = createFakeEngine();
     const store = createGameStore({ engine });
@@ -508,10 +625,12 @@ describe('gameStore', () => {
 });
 
 function createFakeEngine(): AsyncEngineAdapter & {
+  cancelSearch: ReturnType<typeof vi.fn>;
   setDifficulty: ReturnType<typeof vi.fn>;
   requestBestMove: ReturnType<typeof vi.fn>;
 } {
-  const setDifficulty = vi.fn<(difficulty: 'easy' | 'medium' | 'hard') => Promise<void>>();
+  const cancelSearch = vi.fn(async () => {});
+  const setDifficulty = vi.fn(async () => {});
   const requestBestMove = vi.fn<
     (request: { fen: string }) => Promise<BestMoveResponse>
   >();
@@ -520,7 +639,7 @@ function createFakeEngine(): AsyncEngineAdapter & {
     state: 'ready',
     setDifficulty,
     requestBestMove,
-    async cancelSearch() {},
+    cancelSearch,
     async dispose() {},
   };
 }

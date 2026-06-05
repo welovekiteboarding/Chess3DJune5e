@@ -59,6 +59,51 @@ describe('GamePanel', () => {
     expect(handleNewGame).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a cancel control while the engine is thinking and invokes its callback', () => {
+    const handleCancelAiMove = vi.fn();
+
+    render(
+      <GamePanel
+        aiSide="White"
+        difficultyOptions={difficultyOptions}
+        humanSide="Black"
+        isEngineThinking
+        moveHistory={[]}
+        onCancelAiMove={handleCancelAiMove}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="hard"
+        sideToMove="White to move"
+        status="Ongoing"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel AI move' }));
+
+    expect(handleCancelAiMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show a cancel control when the engine is not thinking', () => {
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        moveHistory={[]}
+        onCancelAiMove={() => {}}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="White to move"
+        status="Ongoing"
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Cancel AI move' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('exposes multiple AI difficulty levels', () => {
     render(
       <GamePanel

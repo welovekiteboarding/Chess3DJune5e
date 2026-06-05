@@ -14,6 +14,7 @@ export interface GamePanelProps {
   isEngineThinking?: boolean;
   latestError?: string | null;
   moveHistory?: readonly string[];
+  onCancelAiMove?: () => void;
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onNewGame: () => void;
   selectedDifficulty: AiDifficulty;
@@ -28,6 +29,7 @@ export function GamePanel({
   isEngineThinking = false,
   latestError = null,
   moveHistory = [],
+  onCancelAiMove,
   onDifficultyChange,
   onNewGame,
   selectedDifficulty,
@@ -108,6 +110,12 @@ export function GamePanel({
         <button onClick={onNewGame} type="button">
           New game
         </button>
+
+        {isEngineThinking && onCancelAiMove ? (
+          <button onClick={onCancelAiMove} type="button">
+            Cancel AI move
+          </button>
+        ) : null}
       </div>
 
       <section aria-label="Move history">
