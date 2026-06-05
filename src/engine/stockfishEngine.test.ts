@@ -32,6 +32,26 @@ class FakeUciTransport implements UciTransport {
   }
 }
 
+class FakeStockfishPackageEngine {
+  readonly commands: string[] = [];
+  listener: ((line: string) => void) | null = null;
+  quitCalled = false;
+
+  sendCommand(command: string): void {
+    this.commands.push(command);
+  }
+
+  quit(): void {
+    this.quitCalled = true;
+  }
+
+  emit(...lines: string[]): void {
+    for (const line of lines) {
+      this.listener?.(line);
+    }
+  }
+}
+
 describe('stockfishEngine', () => {
   it('sends the expected UCI sequence and resolves a best move', async () => {
     const transport = new FakeUciTransport();
@@ -133,6 +153,52 @@ describe('stockfishEngine', () => {
 
     await expect(engine.dispose()).resolves.toBeUndefined();
     expect(transport.terminated).toBe(true);
+  });
+
+  it('supports package engines that expose sendCommand and listener', async () => {
+    const packageEngine = new FakeStockfishPackageEngine();
+    const engine = createStockfishEngine({
+      packageFactory: () => packageEngine,
+    });
+    const fen = '4k3/8/8/8/8/8/8/4K3 w - - 0 1';
+
+    await engine.setDifficulty('hard');
+
+    const bestMovePromise = engine.requestBestMove({ fen });
+
+    await waitFor(() => packageEngine.commands.length === 1);
+    expect(packageEngine.commands).toEqual(['uci']);
+
+    packageEngine.emit('uciok');
+    await waitFor(() => packageEngine.commands.length === 2);
+    expect(packageEngine.commands).toEqual(['uci', 'isready']);
+
+    packageEngine.emit('readyok');
+    await waitFor(() => packageEngine.commands.length === 4);
+    expect(packageEngine.commands).toEqual([
+      'uci',
+      'isready',
+      `position fen ${fen}`,
+      'go depth 14',
+    ]);
+
+    packageEngine.emit('info depth 14 score cp 52', 'bestmove e2e4');
+
+    await expect(bestMovePromise).resolves.toEqual({
+      difficulty: 'hard',
+      fen,
+      info: {
+        depth: 14,
+        score: {
+          kind: 'cp',
+          value: 52,
+        },
+      },
+      move: 'e2e4',
+    });
+
+    await expect(engine.dispose()).resolves.toBeUndefined();
+    expect(packageEngine.quitCalled).toBe(true);
   });
 });
 

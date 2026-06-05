@@ -47,6 +47,7 @@ export interface StockfishPackageEngineLike {
     type: 'message',
     listener: (event: unknown) => void,
   ) => void;
+  listener?: ((line: string) => void) | null;
   onmessage?: ((event: unknown) => void) | null;
   postMessage?: (message: string) => void;
   quit?: () => void | Promise<void>;
@@ -403,13 +404,17 @@ export async function createStockfishTransportFromPackage(
 ): Promise<UciTransport> {
   const engine = await Promise.resolve(factory());
   const send = engine.sendCommand ?? engine.postMessage;
+  const attachListener =
+    typeof engine.sendCommand === 'function' || 'listener' in engine
+      ? (listener: LineListener) => attachLineListenerProperty(engine, listener)
+      : (listener: LineListener) => attachMessageListener(engine, listener);
 
   if (!send) {
     throw new Error('The Stockfish package engine must expose a send method.');
   }
 
   return createTransport({
-    attachListener: (listener) => attachMessageListener(engine, listener),
+    attachListener,
     send: (command) => {
       send.call(engine, command);
     },
@@ -466,6 +471,30 @@ function attachMessageListener(
   return () => {
     if (target.onmessage === assignedHandler) {
       target.onmessage = previousHandler;
+    }
+  };
+}
+
+function attachLineListenerProperty(
+  target: {
+    listener?: ((line: string) => void) | null;
+  },
+  listener: LineListener,
+): () => void {
+  const previousListener = target.listener ?? null;
+  const assignedListener = (line: string) => {
+    previousListener?.(line);
+
+    for (const normalizedLine of normalizeLines(line)) {
+      listener(normalizedLine);
+    }
+  };
+
+  target.listener = assignedListener;
+
+  return () => {
+    if (target.listener === assignedListener) {
+      target.listener = previousListener;
     }
   };
 }
