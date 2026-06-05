@@ -225,12 +225,9 @@ describe('stockfishEngine', () => {
 
     await expect(engine.cancelSearch()).resolves.toBeUndefined();
 
-    transport.emit('uciok');
-    await waitFor(() => transport.commands.includes('isready'));
-    transport.emit('readyok');
     await flushAsyncWork();
 
-    expect(transport.commands).toContain('isready');
+    expect(transport.commands).toContain('stop');
     expect(transport.commands).not.toContain(`position fen ${fen}`);
     expect(transport.commands).not.toContain('go depth 10');
     await expect(
@@ -341,6 +338,55 @@ describe('stockfishEngine', () => {
       }),
     ).rejects.toThrow('Stockfish failed to initialize: worker crashed');
     expect(engine.state).toBe('idle');
+  });
+
+  it('times out if Stockfish never finishes the initial UCI handshake', async () => {
+    const transport = new FakeUciTransport();
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+      timeoutMs: 25,
+    });
+
+    const bestMovePromise = engine.requestBestMove({
+      fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1',
+    });
+    void bestMovePromise.catch(() => undefined);
+
+    await waitFor(() => transport.commands.length === 1);
+    expect(transport.commands).toEqual(['uci']);
+
+    await expect(bestMovePromise).rejects.toThrow(
+      'Stockfish failed to initialize: Timed out waiting for uciok.',
+    );
+    expect(engine.state).toBe('idle');
+  });
+
+  it('times out if Stockfish never returns a bestmove after search starts', async () => {
+    const transport = new FakeUciTransport();
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+      timeoutMs: 25,
+    });
+    const fen = '4k3/8/8/8/8/8/8/4K3 w - - 0 1';
+
+    const bestMovePromise = engine.requestBestMove({ fen });
+    void bestMovePromise.catch(() => undefined);
+
+    await waitFor(() => transport.commands.length === 1);
+    transport.emit('uciok');
+    await waitFor(() => transport.commands.length === 2);
+    transport.emit('readyok');
+    await waitFor(() => transport.commands.length === 4);
+
+    expect(transport.commands.slice(-2)).toEqual([
+      `position fen ${fen}`,
+      'go depth 10',
+    ]);
+
+    await expect(bestMovePromise).rejects.toThrow(
+      'Stockfish move request failed: Timed out waiting for bestmove.',
+    );
+    expect(engine.state).toBe('ready');
   });
 
   it('supports package engines that expose sendCommand and listener', async () => {

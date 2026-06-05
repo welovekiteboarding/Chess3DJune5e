@@ -72,6 +72,7 @@ export type StockfishPackageFactory = () =>
 export interface StockfishEngineOptions {
   difficulty?: AiDifficulty;
   packageFactory?: StockfishPackageFactory;
+  timeoutMs?: number;
   transportFactory?: StockfishTransportFactory;
   workerFactory?: StockfishWorkerFactory;
 }
@@ -85,6 +86,7 @@ interface LineWaiter {
   matches: (line: string) => boolean;
   reject: (error: unknown) => void;
   resolve: (line: string) => void;
+  timeoutHandle: ReturnType<typeof setTimeout> | null;
 }
 
 interface PendingSearch {
@@ -93,6 +95,7 @@ interface PendingSearch {
   reject: (error: unknown) => void;
   request: BestMoveRequest;
   resolve: (response: BestMoveResponse) => void;
+  timeoutHandle: ReturnType<typeof setTimeout> | null;
 }
 
 export class StockfishSearchCancelledError extends Error {
@@ -113,6 +116,7 @@ const STOCKFISH_BOOT_ERROR_PREFIX = 'Stockfish failed to initialize';
 const STOCKFISH_REQUEST_ERROR_PREFIX = 'Stockfish move request failed';
 const STOCKFISH_INVALID_BESTMOVE_ERROR =
   'Stockfish returned an invalid bestmove response.';
+const DEFAULT_ENGINE_TIMEOUT_MS = 5_000;
 
 export class StockfishEngine implements AsyncEngineAdapter {
   private difficulty: AiDifficulty;
@@ -120,11 +124,13 @@ export class StockfishEngine implements AsyncEngineAdapter {
   private lineWaiters: LineWaiter[] = [];
   private pendingSearch: PendingSearch | null = null;
   private stateValue: EngineLifecycleState = 'idle';
+  private readonly timeoutMs: number;
   private transportPromise: Promise<UciTransport> | null = null;
   private unsubscribeFromLines: (() => void) | null = null;
 
   constructor(private readonly options: StockfishEngineOptions = {}) {
     this.difficulty = options.difficulty ?? 'medium';
+    this.timeoutMs = normalizeTimeoutMs(options.timeoutMs);
   }
 
   get state(): EngineLifecycleState {
@@ -151,6 +157,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
         reject,
         request,
         resolve,
+        timeoutHandle: null,
       };
 
       this.pendingSearch = pendingSearch;
@@ -168,6 +175,8 @@ export class StockfishEngine implements AsyncEngineAdapter {
     }
 
     this.pendingSearch = null;
+    this.clearPendingSearchTimeout(pendingSearch);
+    this.rejectLineWaiters(new StockfishSearchCancelledError(reason));
     pendingSearch.reject(new StockfishSearchCancelledError(reason));
 
     if (!this.isDisposed()) {
@@ -191,6 +200,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
 
     const pendingSearch = this.pendingSearch;
     this.pendingSearch = null;
+    this.clearPendingSearchTimeout(pendingSearch);
     pendingSearch?.reject(new StockfishSearchCancelledError('disposed'));
 
     const transport = await this.transportPromise?.catch(() => null);
@@ -219,7 +229,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
     this.stateValue = 'initializing';
 
     if (!this.initialized) {
-      const uciOk = this.waitForLine(isUciOkLine);
+      const uciOk = this.waitForLine(isUciOkLine, 'uciok');
 
       await Promise.resolve(transport.send('uci'));
       await uciOk;
@@ -228,7 +238,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
       this.initialized = true;
     }
 
-    const readyOk = this.waitForLine(isReadyOkLine);
+    const readyOk = this.waitForLine(isReadyOkLine, 'readyok');
 
     await Promise.resolve(transport.send('isready'));
     await readyOk;
@@ -268,6 +278,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
       ).catch((error) => {
         throw toStockfishFailure(error, STOCKFISH_REQUEST_ERROR_PREFIX);
       });
+      this.startBestMoveTimeout(pendingSearch, transport);
     } catch (error) {
       this.finishSearchWithError(pendingSearch, error);
     }
@@ -292,6 +303,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
     }
 
     this.pendingSearch = null;
+    this.clearPendingSearchTimeout(pendingSearch);
 
     if (!this.isDisposed()) {
       this.stateValue = this.initialized ? 'ready' : 'idle';
@@ -322,7 +334,6 @@ export class StockfishEngine implements AsyncEngineAdapter {
         continue;
       }
 
-      this.lineWaiters = this.lineWaiters.filter((item) => item !== waiter);
       waiter.resolve(line);
       break;
     }
@@ -356,6 +367,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
     }
 
     this.pendingSearch = null;
+    this.clearPendingSearchTimeout(pendingSearch);
 
     if (!this.isDisposed()) {
       this.stateValue = 'ready';
@@ -379,14 +391,72 @@ export class StockfishEngine implements AsyncEngineAdapter {
     }
   }
 
-  private waitForLine(matches: (line: string) => boolean): Promise<string> {
+  private waitForLine(
+    matches: (line: string) => boolean,
+    label: string,
+  ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      this.lineWaiters.push({
+      const waiter: LineWaiter = {
         matches,
-        reject,
-        resolve,
-      });
+        reject: (error) => {
+          this.removeLineWaiter(waiter);
+          reject(error);
+        },
+        resolve: (line) => {
+          this.removeLineWaiter(waiter);
+          resolve(line);
+        },
+        timeoutHandle: null,
+      };
+
+      waiter.timeoutHandle = setTimeout(() => {
+        waiter.reject(new Error(`Timed out waiting for ${label}.`));
+      }, this.timeoutMs);
+
+      this.lineWaiters.push(waiter);
     });
+  }
+
+  private removeLineWaiter(waiter: LineWaiter): void {
+    this.lineWaiters = this.lineWaiters.filter((item) => item !== waiter);
+
+    if (waiter.timeoutHandle !== null) {
+      clearTimeout(waiter.timeoutHandle);
+      waiter.timeoutHandle = null;
+    }
+  }
+
+  private startBestMoveTimeout(
+    pendingSearch: PendingSearch,
+    transport: UciTransport,
+  ): void {
+    this.clearPendingSearchTimeout(pendingSearch);
+
+    pendingSearch.timeoutHandle = setTimeout(() => {
+      if (this.pendingSearch !== pendingSearch) {
+        return;
+      }
+
+      void Promise.resolve(transport.send('stop')).catch(() => undefined);
+      this.finishSearchWithError(
+        pendingSearch,
+        toStockfishFailure(
+          new Error('Timed out waiting for bestmove.'),
+          STOCKFISH_REQUEST_ERROR_PREFIX,
+        ),
+      );
+    }, this.timeoutMs);
+  }
+
+  private clearPendingSearchTimeout(
+    pendingSearch: PendingSearch | null,
+  ): void {
+    if (!pendingSearch || pendingSearch.timeoutHandle === null) {
+      return;
+    }
+
+    clearTimeout(pendingSearch.timeoutHandle);
+    pendingSearch.timeoutHandle = null;
   }
 
   private isDisposed(): boolean {
@@ -476,6 +546,18 @@ function createBrowserStockfishWorker(): StockfishWorkerLike {
     name: 'stockfish-engine',
     type: 'classic',
   }) as StockfishWorkerLike;
+}
+
+function normalizeTimeoutMs(timeoutMs: number | undefined): number {
+  if (
+    typeof timeoutMs === 'number' &&
+    Number.isFinite(timeoutMs) &&
+    timeoutMs > 0
+  ) {
+    return timeoutMs;
+  }
+
+  return DEFAULT_ENGINE_TIMEOUT_MS;
 }
 
 function attachMessageListener(
