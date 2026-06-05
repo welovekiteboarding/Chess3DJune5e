@@ -59,6 +59,7 @@ export interface GameStoreState {
   sideToMoveLabel: string;
   aiDifficulty: AiDifficulty;
   isEngineThinking: boolean;
+  isAiAutoPlayBlocked: boolean;
   latestError: string | null;
   selectSquare: (square: ChessSquare) => void;
   clearSelection: () => void;
@@ -73,6 +74,7 @@ export interface GameStoreState {
   startNewGame: () => void;
   setAiDifficulty: (difficulty: AiDifficulty) => Promise<void>;
   requestAiMove: () => Promise<GameMoveAttemptResult>;
+  cancelAiMove: () => void;
   applyAiMove: (uciMove: ChessUciMove | string) => GameMoveAttemptResult;
 }
 
@@ -111,6 +113,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
     invalidatePendingEngineRequest();
     set({
       isEngineThinking: false,
+      latestError: null,
     });
     void engine.cancelSearch().catch(() => undefined);
   };
@@ -123,6 +126,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       aiDifficulty: initialDifficulty,
       moveHistory: [],
       isEngineThinking: false,
+      isAiAutoPlayBlocked: false,
       latestError: null,
     }),
 
@@ -250,6 +254,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
           aiDifficulty: state.aiDifficulty,
           moveHistory: [],
           isEngineThinking: false,
+          isAiAutoPlayBlocked: false,
           latestError: null,
         }),
       }));
@@ -298,6 +303,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       set({
         isEngineThinking: true,
+        isAiAutoPlayBlocked: false,
         latestError: null,
       });
 
@@ -368,6 +374,26 @@ export function createGameStore(options: CreateGameStoreOptions) {
       pendingAiRequestPromise = requestPromise;
 
       return requestPromise;
+    },
+
+    cancelAiMove: () => {
+      const state = get();
+
+      if (
+        !state.isEngineThinking ||
+        pendingAiRequestPromise === null ||
+        pendingAiRequestFen !== state.currentFen
+      ) {
+        return;
+      }
+
+      invalidatePendingEngineRequest();
+      set({
+        isEngineThinking: false,
+        isAiAutoPlayBlocked: true,
+        latestError: null,
+      });
+      void engine.cancelSearch().catch(() => undefined);
     },
 
     applyAiMove: (uciMove) => {
@@ -442,6 +468,7 @@ function applyMoveResult({
         },
       ],
       isEngineThinking: false,
+      isAiAutoPlayBlocked: false,
       latestError: null,
     }),
   });
@@ -482,6 +509,7 @@ function buildStateSnapshot({
   aiDifficulty,
   moveHistory,
   isEngineThinking,
+  isAiAutoPlayBlocked,
   latestError,
 }: {
   gameState: ChessGameState;
@@ -490,6 +518,7 @@ function buildStateSnapshot({
   aiDifficulty: AiDifficulty;
   moveHistory: GameMoveRecord[];
   isEngineThinking: boolean;
+  isAiAutoPlayBlocked: boolean;
   latestError: string | null;
 }) {
   const displayState = getGameDisplayState(gameState);
@@ -508,6 +537,7 @@ function buildStateSnapshot({
     sideToMoveLabel: displayState.sideToMoveLabel,
     aiDifficulty,
     isEngineThinking,
+    isAiAutoPlayBlocked,
     latestError,
   } satisfies Pick<
     GameStoreState,
@@ -524,6 +554,7 @@ function buildStateSnapshot({
     | 'sideToMoveLabel'
     | 'aiDifficulty'
     | 'isEngineThinking'
+    | 'isAiAutoPlayBlocked'
     | 'latestError'
   >;
 }

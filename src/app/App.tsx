@@ -31,6 +31,7 @@ export function App({
   const {
     aiDifficulty,
     aiSide,
+    cancelAiMove,
     clearSelection,
     completePendingPromotion,
     cancelPendingPromotion,
@@ -39,6 +40,7 @@ export function App({
     gameStatusLabel,
     humanSide,
     isEngineThinking,
+    isAiAutoPlayBlocked,
     latestError,
     legalDestinationSquares,
     moveHistory,
@@ -67,6 +69,7 @@ export function App({
       !shouldAutoRequestAiMove({
         aiSide,
         gameStatus,
+        isAiAutoPlayBlocked,
         isEngineThinking,
         latestError,
         pendingPromotion,
@@ -81,6 +84,7 @@ export function App({
     aiSide,
     autoRequestAiMoves,
     gameStatus,
+    isAiAutoPlayBlocked,
     isEngineThinking,
     latestError,
     pendingPromotion,
@@ -163,6 +167,7 @@ export function App({
               isEngineThinking={isEngineThinking}
               latestError={latestError}
               moveHistory={moveHistoryLabels}
+              onCancelAiMove={cancelAiMove}
               onDifficultyChange={handleDifficultyChange}
               onNewGame={startNewGame}
               selectedDifficulty={aiDifficulty}
@@ -183,6 +188,7 @@ function canAiMove(gameStatus: ChessGameStatus): boolean {
 function shouldAutoRequestAiMove({
   aiSide,
   gameStatus,
+  isAiAutoPlayBlocked,
   isEngineThinking,
   latestError,
   pendingPromotion,
@@ -190,12 +196,14 @@ function shouldAutoRequestAiMove({
 }: {
   aiSide: GameStoreState['aiSide'];
   gameStatus: ChessGameStatus;
+  isAiAutoPlayBlocked: boolean;
   isEngineThinking: boolean;
   latestError: string | null;
   pendingPromotion: GameStoreState['pendingPromotion'];
   sideToMove: GameStoreState['sideToMove'];
 }): boolean {
   return (
+    !isAiAutoPlayBlocked &&
     latestError === null &&
     pendingPromotion === null &&
     !isEngineThinking &&
