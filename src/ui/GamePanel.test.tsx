@@ -37,6 +37,28 @@ describe('GamePanel', () => {
     ).toBeInTheDocument();
   });
 
+  it('announces the latest engine error through an accessible alert region', () => {
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        latestError="Engine lost connection."
+        moveHistory={[]}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="White to move"
+        status="Check"
+      />,
+    );
+
+    const alert = screen.getByRole('alert', { name: 'Engine error' });
+
+    expect(alert).toHaveAttribute('aria-live', 'assertive');
+    expect(alert).toHaveTextContent('Latest error: Engine lost connection.');
+  });
+
   it('invokes the new game callback when the control is activated', () => {
     const handleNewGame = vi.fn();
 
@@ -102,6 +124,30 @@ describe('GamePanel', () => {
     expect(
       screen.queryByRole('button', { name: 'Cancel AI move' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows a retry control for a recoverable engine error and invokes its callback', () => {
+    const handleRetryAiMove = vi.fn();
+
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        latestError="AI move was cancelled. Retry AI move to continue."
+        moveHistory={[]}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        onRetryAiMove={handleRetryAiMove}
+        selectedDifficulty="medium"
+        sideToMove="Black to move"
+        status="Ongoing"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry AI move' }));
+
+    expect(handleRetryAiMove).toHaveBeenCalledTimes(1);
   });
 
   it('exposes multiple AI difficulty levels', () => {

@@ -59,7 +59,6 @@ export interface GameStoreState {
   sideToMoveLabel: string;
   aiDifficulty: AiDifficulty;
   isEngineThinking: boolean;
-  isAiAutoPlayBlocked: boolean;
   latestError: string | null;
   selectSquare: (square: ChessSquare) => void;
   clearSelection: () => void;
@@ -126,7 +125,6 @@ export function createGameStore(options: CreateGameStoreOptions) {
       aiDifficulty: initialDifficulty,
       moveHistory: [],
       isEngineThinking: false,
-      isAiAutoPlayBlocked: false,
       latestError: null,
     }),
 
@@ -254,7 +252,6 @@ export function createGameStore(options: CreateGameStoreOptions) {
           aiDifficulty: state.aiDifficulty,
           moveHistory: [],
           isEngineThinking: false,
-          isAiAutoPlayBlocked: false,
           latestError: null,
         }),
       }));
@@ -303,7 +300,6 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       set({
         isEngineThinking: true,
-        isAiAutoPlayBlocked: false,
         latestError: null,
       });
 
@@ -402,8 +398,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       invalidatePendingEngineRequest();
       set({
         isEngineThinking: false,
-        isAiAutoPlayBlocked: true,
-        latestError: null,
+        latestError: CANCELLED_AI_MOVE_ERROR,
       });
       void engine.cancelSearch().catch(() => undefined);
     },
@@ -480,7 +475,6 @@ function applyMoveResult({
         },
       ],
       isEngineThinking: false,
-      isAiAutoPlayBlocked: false,
       latestError: null,
     }),
   });
@@ -514,6 +508,9 @@ function createSupersededAiMoveAttempt(): GameMoveAttemptResult {
   };
 }
 
+const CANCELLED_AI_MOVE_ERROR =
+  'AI move was cancelled. Retry AI move to continue.';
+
 function buildStateSnapshot({
   gameState,
   humanSide,
@@ -521,7 +518,6 @@ function buildStateSnapshot({
   aiDifficulty,
   moveHistory,
   isEngineThinking,
-  isAiAutoPlayBlocked,
   latestError,
 }: {
   gameState: ChessGameState;
@@ -530,7 +526,6 @@ function buildStateSnapshot({
   aiDifficulty: AiDifficulty;
   moveHistory: GameMoveRecord[];
   isEngineThinking: boolean;
-  isAiAutoPlayBlocked: boolean;
   latestError: string | null;
 }) {
   const displayState = getGameDisplayState(gameState);
@@ -549,7 +544,6 @@ function buildStateSnapshot({
     sideToMoveLabel: displayState.sideToMoveLabel,
     aiDifficulty,
     isEngineThinking,
-    isAiAutoPlayBlocked,
     latestError,
   } satisfies Pick<
     GameStoreState,
@@ -566,7 +560,6 @@ function buildStateSnapshot({
     | 'sideToMoveLabel'
     | 'aiDifficulty'
     | 'isEngineThinking'
-    | 'isAiAutoPlayBlocked'
     | 'latestError'
   >;
 }

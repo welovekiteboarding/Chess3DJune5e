@@ -36,6 +36,10 @@ export function isReadyOkLine(line: string): boolean {
   return line.trim() === 'readyok';
 }
 
+export function isBestMoveLine(line: string): boolean {
+  return tokenize(line)[0] === 'bestmove';
+}
+
 export function parseBestMoveLine(line: string): ParsedBestMove | null {
   const tokens = tokenize(line);
 

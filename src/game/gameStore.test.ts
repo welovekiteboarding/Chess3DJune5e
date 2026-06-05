@@ -383,6 +383,36 @@ describe('gameStore', () => {
     expect(store.getState().latestError).toBe('Engine offline');
   });
 
+  it('records a malformed engine response error without updating the position', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockRejectedValue(
+      new Error('Stockfish returned an invalid bestmove response.'),
+    );
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    const fenBeforeAiMove = store.getState().currentFen;
+
+    await expect(store.getState().requestAiMove()).resolves.toEqual({
+      ok: false,
+      error: 'Stockfish returned an invalid bestmove response.',
+    });
+
+    expect(store.getState().currentFen).toBe(fenBeforeAiMove);
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBe(
+      'Stockfish returned an invalid bestmove response.',
+    );
+  });
+
   it('clears engine thinking when a pending AI move request is cancelled by starting a new game', async () => {
     const engine = createFakeEngine();
     const deferredResponse = createDeferred<BestMoveResponse>();
@@ -406,7 +436,42 @@ describe('gameStore', () => {
     );
   });
 
-  it('cancels a pending AI move request through the engine adapter and clears thinking state immediately', async () => {
+  it('ignores a stale AI response that arrives after starting a new game', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    const pendingRequest = store.getState().requestAiMove();
+    const staleFen = store.getState().currentFen;
+
+    await flushAsyncWork();
+
+    store.getState().startNewGame();
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: staleFen,
+      move: 'e7e5',
+    });
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: false,
+      error: 'AI move request was superseded.',
+    });
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBeNull();
+  });
+
+  it('cancels a pending AI move request through the engine adapter, records a retryable error, and clears thinking state immediately', async () => {
     const engine = createFakeEngine();
     const deferredResponse = createDeferred<BestMoveResponse>();
     engine.requestBestMove.mockReturnValue(deferredResponse.promise);
@@ -425,7 +490,9 @@ describe('gameStore', () => {
 
     expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
     expect(store.getState().isEngineThinking).toBe(false);
-    expect(store.getState().latestError).toBeNull();
+    expect(store.getState().latestError).toBe(
+      'AI move was cancelled. Retry AI move to continue.',
+    );
 
     deferredResponse.resolve({
       difficulty: 'medium',
@@ -447,6 +514,75 @@ describe('gameStore', () => {
     expect(store.getState().currentFen).toBe(
       'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
     );
+  });
+
+  it('allows a cancelled AI move request to be retried for the same position', async () => {
+    const engine = createFakeEngine();
+    const firstResponse = createDeferred<BestMoveResponse>();
+    const secondResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    const cancelledRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    store.getState().cancelAiMove();
+
+    expect(store.getState().latestError).toBe(
+      'AI move was cancelled. Retry AI move to continue.',
+    );
+
+    const retriedRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(engine.requestBestMove).toHaveBeenCalledTimes(2);
+    expect(store.getState().latestError).toBeNull();
+
+    firstResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await expect(cancelledRequest).resolves.toEqual({
+      ok: false,
+      error: 'AI move request was superseded.',
+    });
+
+    secondResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await expect(retriedRequest).resolves.toEqual({
+      ok: true,
+      move: {
+        from: 'e7',
+        to: 'e5',
+        uci: 'e7e5',
+      },
+    });
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+      {
+        player: 'ai',
+        uci: 'e7e5',
+      },
+    ]);
+    expect(store.getState().latestError).toBeNull();
   });
 
   it('does not start an engine search if cancellation happens while setting difficulty', async () => {

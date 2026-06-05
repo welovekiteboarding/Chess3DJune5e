@@ -199,6 +199,32 @@ describe('App', () => {
     });
   });
 
+  it('renders the latest engine failure through the panel alert region', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockRejectedValue(new Error('Engine offline'));
+
+    const store = createGameStore({
+      engine,
+    });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    render(
+      <App
+        autoRequestAiMoves
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('alert', { name: 'Engine error' }),
+      ).toHaveTextContent('Latest error: Engine offline'),
+    );
+  });
+
   it('auto-requests the opening AI move by default when the human plays black', async () => {
     const engine = createFakeEngine();
     engine.requestBestMove.mockResolvedValue({
@@ -359,10 +385,13 @@ describe('App', () => {
     expect(screen.getByText('Engine idle')).toBeInTheDocument();
   });
 
-  it('shows a cancel control during auto-play and cancels the pending AI move', async () => {
+  it('shows a cancel control during auto-play, then exposes a retry path after cancellation', async () => {
     const engine = createFakeEngine();
-    const deferredResponse = createDeferred<BestMoveResponse>();
-    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+    const firstResponse = createDeferred<BestMoveResponse>();
+    const secondResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise);
 
     const store = createGameStore({
       engine,
@@ -388,8 +417,20 @@ describe('App', () => {
 
     expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Cancel AI move' })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('alert', { name: 'Engine error' }),
+    ).toHaveTextContent('Latest error: AI move was cancelled. Retry AI move to continue.');
+    expect(
+      screen.getByRole('button', { name: 'Retry AI move' }),
+    ).toBeInTheDocument();
 
-    deferredResponse.resolve({
+    fireEvent.click(screen.getByRole('button', { name: 'Retry AI move' }));
+
+    await waitFor(() => {
+      expect(engine.requestBestMove).toHaveBeenCalledTimes(2);
+    });
+
+    firstResponse.resolve({
       difficulty: 'medium',
       fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
       move: 'e7e5',
@@ -400,6 +441,25 @@ describe('App', () => {
         {
           player: 'human',
           uci: 'e2e4',
+        },
+      ]),
+    );
+
+    secondResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await waitFor(() =>
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'human',
+          uci: 'e2e4',
+        },
+        {
+          player: 'ai',
+          uci: 'e7e5',
         },
       ]),
     );

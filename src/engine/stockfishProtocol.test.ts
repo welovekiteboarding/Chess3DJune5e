@@ -1,4 +1,5 @@
 import {
+  isBestMoveLine,
   isReadyOkLine,
   isUciOkLine,
   parseBestMoveLine,
@@ -28,6 +29,12 @@ describe('stockfishProtocol', () => {
     expect(parseBestMoveLine('bestmove e7e8q')).toEqual({
       move: 'e7e8q',
     });
+  });
+
+  it('detects bestmove lines even when the move payload is malformed', () => {
+    expect(isBestMoveLine('bestmove e2e4')).toBe(true);
+    expect(isBestMoveLine('bestmove nope')).toBe(true);
+    expect(isBestMoveLine('info depth 10')).toBe(false);
   });
 
   it('extracts an info depth and score when present', () => {

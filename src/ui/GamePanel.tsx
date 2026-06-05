@@ -17,6 +17,7 @@ export interface GamePanelProps {
   onCancelAiMove?: () => void;
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onNewGame: () => void;
+  onRetryAiMove?: () => void;
   selectedDifficulty: AiDifficulty;
   sideToMove: string;
   status: string;
@@ -32,6 +33,7 @@ export function GamePanel({
   onCancelAiMove,
   onDifficultyChange,
   onNewGame,
+  onRetryAiMove,
   selectedDifficulty,
   sideToMove,
   status,
@@ -74,9 +76,19 @@ export function GamePanel({
         <p aria-live="polite" style={{ margin: 0 }}>
           {isEngineThinking ? 'Engine thinking' : 'Engine idle'}
         </p>
-        <p role={latestError ? 'alert' : undefined} style={{ margin: 0 }}>
-          Latest error: {latestError ?? 'None'}
-        </p>
+        {latestError ? (
+          <p
+            aria-atomic="true"
+            aria-label="Engine error"
+            aria-live="assertive"
+            role="alert"
+            style={{ margin: 0 }}
+          >
+            Latest error: {latestError}
+          </p>
+        ) : (
+          <p style={{ margin: 0 }}>Latest error: None</p>
+        )}
       </div>
 
       <div
@@ -114,6 +126,12 @@ export function GamePanel({
         {isEngineThinking && onCancelAiMove ? (
           <button onClick={onCancelAiMove} type="button">
             Cancel AI move
+          </button>
+        ) : null}
+
+        {!isEngineThinking && onRetryAiMove ? (
+          <button onClick={onRetryAiMove} type="button">
+            Retry AI move
           </button>
         ) : null}
       </div>
