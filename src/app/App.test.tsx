@@ -314,6 +314,32 @@ describe('App', () => {
     expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
   });
 
+  it('keeps the difficulty control wired to the store and engine adapter', async () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('AI difficulty'), {
+      target: { value: 'hard' },
+    });
+
+    await waitFor(() => {
+      expect(engine.setDifficulty).toHaveBeenCalledWith('hard');
+    });
+
+    expect(store.getState().aiDifficulty).toBe('hard');
+    expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
+  });
+
   it('shows the promotion UI when the store has a pending promotion', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -423,15 +449,17 @@ describe('App', () => {
 });
 
 function createFakeEngine(): AsyncEngineAdapter & {
+  setDifficulty: ReturnType<typeof vi.fn>;
   requestBestMove: ReturnType<typeof vi.fn>;
 } {
+  const setDifficulty = vi.fn<(difficulty: 'easy' | 'medium' | 'hard') => Promise<void>>();
   const requestBestMove = vi.fn<
     (request: { fen: string }) => Promise<BestMoveResponse>
   >();
 
   return {
     state: 'ready',
-    async setDifficulty() {},
+    setDifficulty,
     requestBestMove,
     async cancelSearch() {},
     async dispose() {},

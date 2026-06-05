@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
 
 import { GamePanel } from './GamePanel';
 
@@ -80,6 +81,30 @@ describe('GamePanel', () => {
 
     expect(difficultyControl).toHaveValue('medium');
     expect(difficultyValues).toEqual(['Easy', 'Medium', 'Hard']);
+  });
+
+  it('invokes the difficulty callback when the selection changes', () => {
+    const handleDifficultyChange = vi.fn();
+
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        moveHistory={[]}
+        onDifficultyChange={handleDifficultyChange}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="Black to move"
+        status="Ongoing"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('AI difficulty'), {
+      target: { value: 'hard' },
+    });
+
+    expect(handleDifficultyChange).toHaveBeenCalledWith('hard');
   });
 
   it('displays the engine thinking state when active', () => {

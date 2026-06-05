@@ -302,6 +302,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       requestPromise = (async (): Promise<GameMoveAttemptResult> => {
         try {
+          await engine.setDifficulty(state.aiDifficulty);
           const response = await engine.requestBestMove({
             fen: requestFen,
           });

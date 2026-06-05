@@ -1,8 +1,10 @@
 import type { ChangeEvent } from 'react';
 
+import type { AiDifficulty } from '../engine/engineTypes';
+
 export interface GamePanelDifficultyOption {
   label: string;
-  value: string;
+  value: AiDifficulty;
 }
 
 export interface GamePanelProps {
@@ -12,9 +14,9 @@ export interface GamePanelProps {
   isEngineThinking?: boolean;
   latestError?: string | null;
   moveHistory?: readonly string[];
-  onDifficultyChange: (difficulty: string) => void;
+  onDifficultyChange: (difficulty: AiDifficulty) => void;
   onNewGame: () => void;
-  selectedDifficulty: string;
+  selectedDifficulty: AiDifficulty;
   sideToMove: string;
   status: string;
 }
@@ -33,7 +35,7 @@ export function GamePanel({
   status,
 }: GamePanelProps) {
   function handleDifficultyChange(event: ChangeEvent<HTMLSelectElement>) {
-    onDifficultyChange(event.target.value);
+    onDifficultyChange(event.target.value as AiDifficulty);
   }
 
   return (

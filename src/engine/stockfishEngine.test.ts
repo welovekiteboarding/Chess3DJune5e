@@ -1,6 +1,7 @@
 import {
   createBrowserStockfishEngine,
   createStockfishEngine,
+  getGoCommandForDifficulty,
 } from './stockfishEngine';
 import type { StockfishWorkerLike, UciTransport } from './stockfishEngine';
 
@@ -99,6 +100,19 @@ class FakeStockfishWorker implements StockfishWorkerLike {
 }
 
 describe('stockfishEngine', () => {
+  it('maps each supported difficulty to a deterministic go command', () => {
+    expect(getGoCommandForDifficulty('easy')).toBe('go depth 6');
+    expect(getGoCommandForDifficulty('medium')).toBe('go depth 10');
+    expect(getGoCommandForDifficulty('hard')).toBe('go depth 14');
+    expect(
+      new Set([
+        getGoCommandForDifficulty('easy'),
+        getGoCommandForDifficulty('medium'),
+        getGoCommandForDifficulty('hard'),
+      ]).size,
+    ).toBe(3);
+  });
+
   it('sends the expected UCI sequence and resolves a best move', async () => {
     const transport = new FakeUciTransport();
     const engine = createStockfishEngine({
@@ -139,6 +153,60 @@ describe('stockfishEngine', () => {
         },
       },
       move: 'e2e4',
+    });
+  });
+
+  it('uses the most recently selected difficulty for a later engine request', async () => {
+    const transport = new FakeUciTransport();
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+    });
+    const firstFen = '8/8/8/8/8/8/8/4K2k w - - 0 1';
+    const secondFen = '8/8/8/8/8/8/8/4K1k1 w - - 0 1';
+
+    await engine.setDifficulty('easy');
+
+    const firstBestMovePromise = engine.requestBestMove({ fen: firstFen });
+
+    await waitFor(() => transport.commands.length === 1);
+    transport.emit('uciok');
+    await waitFor(() => transport.commands.length === 2);
+    transport.emit('readyok');
+    await waitFor(() => transport.commands.length === 4);
+
+    expect(transport.commands.slice(-2)).toEqual([
+      `position fen ${firstFen}`,
+      'go depth 6',
+    ]);
+
+    transport.emit('bestmove e1e2');
+
+    await expect(firstBestMovePromise).resolves.toMatchObject({
+      difficulty: 'easy',
+      fen: firstFen,
+      move: 'e1e2',
+    });
+
+    await engine.setDifficulty('hard');
+
+    const secondBestMovePromise = engine.requestBestMove({ fen: secondFen });
+
+    await waitFor(() => transport.commands.length === 5);
+    transport.emit('readyok');
+    await waitFor(() => transport.commands.length === 7);
+
+    expect(transport.commands.slice(-3)).toEqual([
+      'isready',
+      `position fen ${secondFen}`,
+      'go depth 14',
+    ]);
+
+    transport.emit('bestmove e1f2');
+
+    await expect(secondBestMovePromise).resolves.toMatchObject({
+      difficulty: 'hard',
+      fen: secondFen,
+      move: 'e1f2',
     });
   });
 

@@ -5,17 +5,17 @@ import { useStore } from 'zustand';
 import '../styles/globals.css';
 import type { ChessGameStatus, ChessSquare } from '../chess/chessTypes';
 import { getPiecePlacementsFromFen } from '../chess/chessRules';
-import type { AiDifficulty } from '../engine/engineTypes';
+import { AI_DIFFICULTY_LEVELS, type AiDifficulty } from '../engine/engineTypes';
 import type { GameStore, GameStoreState } from '../game/gameStore';
 import { BoardScene, type BoardSceneCanvasProps } from '../scene/BoardScene';
-import { GamePanel } from '../ui/GamePanel';
+import { GamePanel, type GamePanelDifficultyOption } from '../ui/GamePanel';
 import { PromotionDialog } from '../ui/PromotionDialog';
 
-const difficultyOptions = [
-  { value: 'easy', label: 'Easy' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'hard', label: 'Hard' },
-] as const;
+const difficultyOptions: readonly GamePanelDifficultyOption[] =
+  AI_DIFFICULTY_LEVELS.map((value) => ({
+    value,
+    label: capitalizeLabel(value),
+  }));
 
 export interface AppProps {
   autoRequestAiMoves?: boolean;
@@ -102,8 +102,8 @@ export function App({
     selectSquare(square);
   }
 
-  function handleDifficultyChange(nextDifficulty: string) {
-    void setAiDifficulty(nextDifficulty as AiDifficulty);
+  function handleDifficultyChange(nextDifficulty: AiDifficulty) {
+    void setAiDifficulty(nextDifficulty);
   }
 
   return (

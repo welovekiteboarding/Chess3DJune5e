@@ -278,6 +278,8 @@ describe('gameStore', () => {
     const firstRequest = store.getState().requestAiMove();
     const secondRequest = store.getState().requestAiMove();
 
+    await flushAsyncWork();
+
     expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
     expect(engine.requestBestMove).toHaveBeenCalledWith({
       fen: fenBeforeAiMove,
@@ -318,6 +320,40 @@ describe('gameStore', () => {
         uci: 'e7e5',
       },
     ]);
+  });
+
+  it('applies the selected difficulty to the next AI request through the engine adapter', async () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    const fenBeforeAiMove = store.getState().currentFen;
+
+    await store.getState().setAiDifficulty('hard');
+    engine.setDifficulty.mockClear();
+
+    engine.requestBestMove.mockResolvedValue({
+      difficulty: 'hard',
+      fen: fenBeforeAiMove,
+      move: 'e7e5',
+    });
+
+    await expect(store.getState().requestAiMove()).resolves.toEqual({
+      ok: true,
+      move: {
+        from: 'e7',
+        to: 'e5',
+        uci: 'e7e5',
+      },
+    });
+
+    expect(engine.setDifficulty).toHaveBeenCalledTimes(1);
+    expect(engine.setDifficulty).toHaveBeenCalledWith('hard');
+    expect(engine.requestBestMove).toHaveBeenCalledWith({
+      fen: fenBeforeAiMove,
+    });
   });
 
   it('rejects an invalid fake AI move and records an error', () => {
@@ -388,15 +424,17 @@ describe('gameStore', () => {
 });
 
 function createFakeEngine(): AsyncEngineAdapter & {
+  setDifficulty: ReturnType<typeof vi.fn>;
   requestBestMove: ReturnType<typeof vi.fn>;
 } {
+  const setDifficulty = vi.fn<(difficulty: 'easy' | 'medium' | 'hard') => Promise<void>>();
   const requestBestMove = vi.fn<
     (request: { fen: string }) => Promise<BestMoveResponse>
   >();
 
   return {
     state: 'ready',
-    async setDifficulty() {},
+    setDifficulty,
     requestBestMove,
     async cancelSearch() {},
     async dispose() {},
@@ -417,4 +455,10 @@ function createDeferred<T>() {
     resolve,
     reject,
   };
+}
+
+async function flushAsyncWork(): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 }
