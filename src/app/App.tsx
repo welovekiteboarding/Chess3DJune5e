@@ -51,7 +51,7 @@ export interface AppProps {
 }
 
 export function App({
-  autoRequestAiMoves = true,
+  autoRequestAiMoves = false,
   boardSceneCanvasBoundary,
   store: providedStore,
 }: AppProps = {}) {
