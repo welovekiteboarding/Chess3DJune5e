@@ -11,6 +11,8 @@ function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
 }
 
 describe('App', () => {
+  const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+
   it('composes the local chess shell from the game store state', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -186,6 +188,93 @@ describe('App', () => {
     await waitFor(() => {
       expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('shows the promotion UI when the store has a pending promotion', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    expect(
+      screen.getByRole('dialog', { name: 'Choose promotion piece' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Promote to queen' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Cancel promotion' }),
+    ).toBeInTheDocument();
+  });
+
+  it('completes a pending promotion when the user chooses queen', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Promote to queen' }));
+
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().currentFen).toBe('4Q2k/8/8/8/8/8/8/4K3 b - - 0 1');
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e7e8q',
+      },
+    ]);
+    expect(
+      screen.queryByRole('dialog', { name: 'Choose promotion piece' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clears pending promotion when the user cancels the promotion flow', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel promotion' }));
+
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().currentFen).toBe(promotionReadyFen);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(
+      screen.queryByRole('dialog', { name: 'Choose promotion piece' }),
+    ).not.toBeInTheDocument();
   });
 });
 
