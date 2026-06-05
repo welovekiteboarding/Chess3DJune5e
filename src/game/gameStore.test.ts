@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
+import { getPiecePlacementsFromFen } from '../chess/chessRules';
 import { createGameStore } from './gameStore';
 
 describe('gameStore', () => {
@@ -109,6 +110,17 @@ describe('gameStore', () => {
         uci: 'e2e4',
       },
     ]);
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(getPiecePlacementsFromFen(store.getState().currentFen)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          square: 'e4',
+          piece: 'pawn',
+          color: 'white',
+        }),
+      ]),
+    );
     expect(store.getState().latestError).toBeNull();
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });

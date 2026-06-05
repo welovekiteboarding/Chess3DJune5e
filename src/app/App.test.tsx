@@ -70,6 +70,67 @@ describe('App', () => {
     expect(screen.queryByTestId('legal-destination-square-e5')).not.toBeInTheDocument();
   });
 
+  it('applies a legal human click-to-move sequence without triggering an AI request', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+    });
+    const startingFen = store.getState().currentFen;
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    expect(store.getState().currentFen).not.toBe(startingFen);
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+      'data-square',
+      'e4',
+    );
+    expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it('leaves game state unchanged for an illegal human click-to-move destination', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+    });
+    const startingFen = store.getState().currentFen;
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e5 square' }));
+
+    expect(store.getState().currentFen).toBe(startingFen);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+      'data-square',
+      'e2',
+    );
+    expect(screen.queryByTestId('board-piece-white-pawn-e4')).not.toBeInTheDocument();
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
   it('clears legal-destination markers when the selected square is clicked again', () => {
     const store = createGameStore({
       engine: createFakeEngine(),
@@ -110,6 +171,7 @@ describe('App', () => {
 
     render(
       <App
+        autoRequestAiMoves
         boardSceneCanvasBoundary={TestCanvasBoundary}
         store={store}
       />,
