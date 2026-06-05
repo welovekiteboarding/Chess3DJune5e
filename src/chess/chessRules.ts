@@ -14,6 +14,7 @@ import type {
 } from './chessTypes';
 
 const UCI_MOVE_PATTERN = /^([a-h][1-8])([a-h][1-8])([qrbn])?$/;
+const CHESS_SQUARE_PATTERN = /^[a-h][1-8]$/;
 
 type ChessJsMove = {
   from: ChessSquare;
@@ -45,6 +46,10 @@ export function getLegalMoves(
   gameState: ChessGameState,
   square: ChessSquare,
 ): ChessLegalMove[] {
+  if (!isChessSquare(square)) {
+    return [];
+  }
+
   const chess = fromGameState(gameState);
 
   return chess
@@ -165,6 +170,10 @@ function toGameState(chess: Chess): ChessGameState {
 }
 
 function findLegalMove(chess: Chess, move: ChessMove): ChessJsMove | null {
+  if (!isChessSquare(move.from) || !isChessSquare(move.to)) {
+    return null;
+  }
+
   const legalMoves = chess.moves({
     square: move.from,
     verbose: true,
@@ -207,6 +216,10 @@ function parseUciMove(uciMove: string): ChessMove | null {
     to: to as ChessSquare,
     ...(promotion ? { promotion: promotion as ChessPromotionPiece } : {}),
   };
+}
+
+function isChessSquare(square: string): square is ChessSquare {
+  return CHESS_SQUARE_PATTERN.test(square);
 }
 
 function invalidFenResult(fen: string): ChessLoadResult {

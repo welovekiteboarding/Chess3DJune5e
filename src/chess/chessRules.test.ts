@@ -81,6 +81,24 @@ describe('chessRules', () => {
     });
   });
 
+  it('rejects malformed runtime move coordinates without throwing', () => {
+    const gameState = createInitialGameState();
+    const malformedMove = {
+      from: '',
+      to: 'e4',
+    } as unknown as Parameters<typeof applyMove>[1];
+
+    expect(() => applyMove(gameState, malformedMove)).not.toThrow();
+
+    expect(applyMove(gameState, malformedMove)).toEqual({
+      ok: false,
+      error: {
+        code: 'illegal-move',
+        message: 'Illegal move: e4',
+      },
+    });
+  });
+
   it('round-trips a loaded FEN exactly', () => {
     const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq - 2 3';
     const result = loadGameStateFromFen(fen);
