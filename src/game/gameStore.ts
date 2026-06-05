@@ -107,8 +107,11 @@ export function createGameStore(options: CreateGameStoreOptions) {
     return engineRequestVersion;
   };
 
-  const cancelPendingEngineRequest = () => {
+  const cancelPendingEngineRequest = (set: SetGameStoreState) => {
     invalidatePendingEngineRequest();
+    set({
+      isEngineThinking: false,
+    });
     void engine.cancelSearch().catch(() => undefined);
   };
 
@@ -236,7 +239,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
     },
 
     startNewGame: () => {
-      cancelPendingEngineRequest();
+      cancelPendingEngineRequest(set);
       const nextGameState = initialGameState;
 
       set((state) => ({
@@ -375,7 +378,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
         return failMoveAttempt(set, 'It is not the AI side to move.');
       }
 
-      cancelPendingEngineRequest();
+      cancelPendingEngineRequest(set);
 
       return applyMoveResult({
         get,

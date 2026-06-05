@@ -314,6 +314,51 @@ describe('App', () => {
     expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
   });
 
+  it('shows engine thinking during auto-play and clears the status after the AI move resolves', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({
+      engine,
+    });
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Engine thinking')).toBeInTheDocument(),
+    );
+
+    deferredResponse.resolve({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    await waitFor(() =>
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'human',
+          uci: 'e2e4',
+        },
+        {
+          player: 'ai',
+          uci: 'e7e5',
+        },
+      ]),
+    );
+
+    expect(screen.getByText('Engine idle')).toBeInTheDocument();
+  });
+
   it('keeps the difficulty control wired to the store and engine adapter', async () => {
     const engine = createFakeEngine();
     const store = createGameStore({

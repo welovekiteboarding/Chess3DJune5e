@@ -123,6 +123,24 @@ describe('GamePanel', () => {
       />,
     );
 
-    expect(screen.getByText('Engine: Thinking')).toBeInTheDocument();
+    expect(screen.getByText('Engine thinking')).toBeInTheDocument();
+  });
+
+  it('shows an idle engine status when the engine is not thinking', () => {
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        moveHistory={[]}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="White to move"
+        status="Ongoing"
+      />,
+    );
+
+    expect(screen.getByText('Engine idle')).toBeInTheDocument();
   });
 });

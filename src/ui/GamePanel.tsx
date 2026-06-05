@@ -70,7 +70,7 @@ export function GamePanel({
         <p style={{ margin: 0 }}>Human side: {humanSide}</p>
         <p style={{ margin: 0 }}>AI side: {aiSide}</p>
         <p aria-live="polite" style={{ margin: 0 }}>
-          Engine: {isEngineThinking ? 'Thinking' : 'Idle'}
+          {isEngineThinking ? 'Engine thinking' : 'Engine idle'}
         </p>
         <p role={latestError ? 'alert' : undefined} style={{ margin: 0 }}>
           Latest error: {latestError ?? 'None'}
