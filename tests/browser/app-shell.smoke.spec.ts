@@ -15,7 +15,9 @@ test('boots the real browser Stockfish path and applies an AI move', async ({
   await page.getByTestId('board-square-e2').dispatchEvent('click');
   await page.getByTestId('board-square-e4').dispatchEvent('click');
 
+  await expect(page.getByText('Engine thinking')).toBeVisible();
   await expect(page.getByText('1. human e2e4')).toBeVisible();
+  await expect(page.getByTestId('board-piece-white-pawn-e4')).toBeVisible();
 
   const moveHistoryItems = page.locator('section[aria-label="Move history"] li');
 
@@ -23,4 +25,5 @@ test('boots the real browser Stockfish path and applies an AI move', async ({
   await expect(moveHistoryItems.nth(1)).toHaveText(
     /\d+\. ai [a-h][1-8][a-h][1-8][nbrq]?/,
   );
+  await expect(page.getByText('Engine idle')).toBeVisible();
 });
