@@ -20,13 +20,13 @@ describe('GamePanel', () => {
         onDifficultyChange={() => {}}
         onNewGame={() => {}}
         selectedDifficulty="medium"
-        sideToMove="White"
+        sideToMove="White to move"
         status="Check"
       />,
     );
 
     expect(screen.getByText('Status: Check')).toBeInTheDocument();
-    expect(screen.getByText('Side to move: White')).toBeInTheDocument();
+    expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
     expect(screen.getByText('Human side: White')).toBeInTheDocument();
     expect(screen.getByText('AI side: Black')).toBeInTheDocument();
     expect(screen.getByText('1. e4 e5')).toBeInTheDocument();
@@ -48,8 +48,8 @@ describe('GamePanel', () => {
         onDifficultyChange={() => {}}
         onNewGame={handleNewGame}
         selectedDifficulty="medium"
-        sideToMove="White"
-        status="In progress"
+        sideToMove="White to move"
+        status="Ongoing"
       />,
     );
 
@@ -68,8 +68,8 @@ describe('GamePanel', () => {
         onDifficultyChange={() => {}}
         onNewGame={() => {}}
         selectedDifficulty="medium"
-        sideToMove="Black"
-        status="In progress"
+        sideToMove="Black to move"
+        status="Ongoing"
       />,
     );
 
@@ -93,8 +93,8 @@ describe('GamePanel', () => {
         onDifficultyChange={() => {}}
         onNewGame={() => {}}
         selectedDifficulty="hard"
-        sideToMove="White"
-        status="In progress"
+        sideToMove="White to move"
+        status="Ongoing"
       />,
     );
 

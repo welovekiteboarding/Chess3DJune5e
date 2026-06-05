@@ -12,6 +12,7 @@ function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
 
 describe('App', () => {
   const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+  const checkmateFen = '7k/6Q1/6K1/8/8/8/8/8 b - - 0 1';
 
   it('composes the local chess shell from the game store state', () => {
     const store = createGameStore({
@@ -40,7 +41,8 @@ describe('App', () => {
       screen.getByRole('region', { name: 'Panel region' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('board-scene-canvas')).toBeInTheDocument();
-    expect(screen.getByText('Status: In progress')).toBeInTheDocument();
+    expect(screen.getByText('Status: Ongoing')).toBeInTheDocument();
+    expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
     expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
   });
 
@@ -103,6 +105,8 @@ describe('App', () => {
       'e4',
     );
     expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
+    expect(screen.getByText('Status: Ongoing')).toBeInTheDocument();
+    expect(screen.getByText('Side to move: Black to move')).toBeInTheDocument();
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
@@ -216,6 +220,26 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Cancel promotion' }),
     ).toBeInTheDocument();
+  });
+
+  it('renders checkmate status from store-backed chess state without requesting an AI move', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      initialFen: checkmateFen,
+    });
+
+    render(
+      <App
+        autoRequestAiMoves
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    expect(screen.getByText('Status: Checkmate')).toBeInTheDocument();
+    expect(screen.getByText('Side to move: Black to move')).toBeInTheDocument();
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
   it('completes a pending promotion when the user chooses queen', () => {

@@ -54,6 +54,13 @@ export type ChessGameStatus =
   | { kind: 'stalemate' }
   | { kind: 'draw'; reason: ChessDrawReason };
 
+export interface ChessGameDisplayState {
+  sideToMove: ChessPlayer;
+  sideToMoveLabel: string;
+  gameStatus: ChessGameStatus;
+  gameStatusLabel: string;
+}
+
 export type ChessRulesErrorCode = 'invalid-fen' | 'illegal-move' | 'invalid-uci';
 
 export interface ChessRulesError {
