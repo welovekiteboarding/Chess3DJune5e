@@ -13,6 +13,7 @@ import {
   parseInfoLine,
   type ParsedInfo,
 } from './stockfishProtocol';
+import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-asm.js?url';
 
 const GO_COMMAND_BY_DIFFICULTY: Record<AiDifficulty, string> = {
   easy: 'go depth 6',
@@ -77,6 +78,11 @@ export interface StockfishEngineOptions {
   transportFactory?: StockfishTransportFactory;
   workerFactory?: StockfishWorkerFactory;
 }
+
+export type BrowserStockfishEngineOptions = Omit<
+  StockfishEngineOptions,
+  'packageFactory' | 'transportFactory'
+>;
 
 interface LineWaiter {
   matches: (line: string) => boolean;
@@ -387,6 +393,15 @@ export function createStockfishEngine(
   return new StockfishEngine(options);
 }
 
+export function createBrowserStockfishEngine(
+  options: BrowserStockfishEngineOptions = {},
+): AsyncEngineAdapter {
+  return createStockfishEngine({
+    ...options,
+    workerFactory: options.workerFactory ?? createBrowserStockfishWorker,
+  });
+}
+
 export function createStockfishTransportFromWorker(
   worker: StockfishWorkerLike,
 ): UciTransport {
@@ -430,6 +445,13 @@ export async function createStockfishTransportFromPackage(
 
 export function getGoCommandForDifficulty(difficulty: AiDifficulty): string {
   return GO_COMMAND_BY_DIFFICULTY[difficulty];
+}
+
+function createBrowserStockfishWorker(): StockfishWorkerLike {
+  return new Worker(stockfishWorkerUrl, {
+    name: 'stockfish-engine',
+    type: 'classic',
+  }) as StockfishWorkerLike;
 }
 
 function attachMessageListener(

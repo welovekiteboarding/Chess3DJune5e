@@ -6,3 +6,21 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('app-shell-title')).toHaveText('3D Chess');
 });
+
+test('boots the real browser Stockfish path and applies an AI move', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await page.getByTestId('board-square-e2').dispatchEvent('click');
+  await page.getByTestId('board-square-e4').dispatchEvent('click');
+
+  await expect(page.getByText('1. human e2e4')).toBeVisible();
+
+  const moveHistoryItems = page.locator('section[aria-label="Move history"] li');
+
+  await expect(moveHistoryItems).toHaveCount(2);
+  await expect(moveHistoryItems.nth(1)).toHaveText(
+    /\d+\. ai [a-h][1-8][a-h][1-8][nbrq]?/,
+  );
+});

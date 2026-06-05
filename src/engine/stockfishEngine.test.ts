@@ -1,5 +1,8 @@
-import { createStockfishEngine } from './stockfishEngine';
-import type { UciTransport } from './stockfishEngine';
+import {
+  createBrowserStockfishEngine,
+  createStockfishEngine,
+} from './stockfishEngine';
+import type { StockfishWorkerLike, UciTransport } from './stockfishEngine';
 
 class FakeUciTransport implements UciTransport {
   readonly commands: string[] = [];
@@ -48,6 +51,49 @@ class FakeStockfishPackageEngine {
   emit(...lines: string[]): void {
     for (const line of lines) {
       this.listener?.(line);
+    }
+  }
+}
+
+class FakeStockfishWorker implements StockfishWorkerLike {
+  readonly commands: string[] = [];
+  terminated = false;
+
+  private listeners = new Set<(event: unknown) => void>();
+
+  addEventListener(
+    type: 'message',
+    listener: (event: unknown) => void,
+  ): void {
+    if (type === 'message') {
+      this.listeners.add(listener);
+    }
+  }
+
+  postMessage(message: string): void {
+    this.commands.push(message);
+  }
+
+  removeEventListener(
+    type: 'message',
+    listener: (event: unknown) => void,
+  ): void {
+    if (type === 'message') {
+      this.listeners.delete(listener);
+    }
+  }
+
+  terminate(): void {
+    this.terminated = true;
+  }
+
+  emit(...lines: string[]): void {
+    const event = {
+      data: lines.join('\n'),
+    };
+
+    for (const listener of this.listeners) {
+      listener(event);
     }
   }
 }
@@ -199,6 +245,50 @@ describe('stockfishEngine', () => {
 
     await expect(engine.dispose()).resolves.toBeUndefined();
     expect(packageEngine.quitCalled).toBe(true);
+  });
+
+  it('creates a browser Stockfish engine through the worker-based production factory', async () => {
+    const worker = new FakeStockfishWorker();
+    const engine = createBrowserStockfishEngine({
+      workerFactory: () => worker,
+    });
+    const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+
+    const bestMovePromise = engine.requestBestMove({ fen });
+
+    await waitFor(() => worker.commands.length === 1);
+    expect(worker.commands).toEqual(['uci']);
+
+    worker.emit('uciok');
+    await waitFor(() => worker.commands.length === 2);
+    expect(worker.commands).toEqual(['uci', 'isready']);
+
+    worker.emit('readyok');
+    await waitFor(() => worker.commands.length === 4);
+    expect(worker.commands).toEqual([
+      'uci',
+      'isready',
+      `position fen ${fen}`,
+      'go depth 10',
+    ]);
+
+    worker.emit('info depth 10 score cp 16', 'bestmove f1b5');
+
+    await expect(bestMovePromise).resolves.toEqual({
+      difficulty: 'medium',
+      fen,
+      info: {
+        depth: 10,
+        score: {
+          kind: 'cp',
+          value: 16,
+        },
+      },
+      move: 'f1b5',
+    });
+
+    await expect(engine.dispose()).resolves.toBeUndefined();
+    expect(worker.terminated).toBe(true);
   });
 });
 
