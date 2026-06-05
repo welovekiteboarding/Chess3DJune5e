@@ -126,6 +126,30 @@ describe('GamePanel', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows a retry control for a recoverable engine error and invokes its callback', () => {
+    const handleRetryAiMove = vi.fn();
+
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        latestError="AI move was cancelled. Retry AI move to continue."
+        moveHistory={[]}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        onRetryAiMove={handleRetryAiMove}
+        selectedDifficulty="medium"
+        sideToMove="Black to move"
+        status="Ongoing"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry AI move' }));
+
+    expect(handleRetryAiMove).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes multiple AI difficulty levels', () => {
     render(
       <GamePanel

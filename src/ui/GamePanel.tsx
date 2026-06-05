@@ -17,6 +17,7 @@ export interface GamePanelProps {
   onCancelAiMove?: () => void;
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onNewGame: () => void;
+  onRetryAiMove?: () => void;
   selectedDifficulty: AiDifficulty;
   sideToMove: string;
   status: string;
@@ -32,6 +33,7 @@ export function GamePanel({
   onCancelAiMove,
   onDifficultyChange,
   onNewGame,
+  onRetryAiMove,
   selectedDifficulty,
   sideToMove,
   status,
@@ -124,6 +126,12 @@ export function GamePanel({
         {isEngineThinking && onCancelAiMove ? (
           <button onClick={onCancelAiMove} type="button">
             Cancel AI move
+          </button>
+        ) : null}
+
+        {!isEngineThinking && onRetryAiMove ? (
+          <button onClick={onRetryAiMove} type="button">
+            Retry AI move
           </button>
         ) : null}
       </div>

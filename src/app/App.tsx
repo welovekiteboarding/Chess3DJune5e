@@ -40,7 +40,6 @@ export function App({
     gameStatusLabel,
     humanSide,
     isEngineThinking,
-    isAiAutoPlayBlocked,
     latestError,
     legalDestinationSquares,
     moveHistory,
@@ -69,7 +68,6 @@ export function App({
       !shouldAutoRequestAiMove({
         aiSide,
         gameStatus,
-        isAiAutoPlayBlocked,
         isEngineThinking,
         latestError,
         pendingPromotion,
@@ -84,7 +82,6 @@ export function App({
     aiSide,
     autoRequestAiMoves,
     gameStatus,
-    isAiAutoPlayBlocked,
     isEngineThinking,
     latestError,
     pendingPromotion,
@@ -109,6 +106,17 @@ export function App({
   function handleDifficultyChange(nextDifficulty: AiDifficulty) {
     void setAiDifficulty(nextDifficulty);
   }
+
+  function handleRetryAiMove() {
+    void requestAiMove();
+  }
+
+  const canRetryAiMove =
+    latestError !== null &&
+    pendingPromotion === null &&
+    !isEngineThinking &&
+    sideToMove === aiSide &&
+    canAiMove(gameStatus);
 
   return (
     <div className="app-shell" data-testid="app-shell">
@@ -170,6 +178,7 @@ export function App({
               onCancelAiMove={cancelAiMove}
               onDifficultyChange={handleDifficultyChange}
               onNewGame={startNewGame}
+              onRetryAiMove={canRetryAiMove ? handleRetryAiMove : undefined}
               selectedDifficulty={aiDifficulty}
               sideToMove={sideToMoveLabel}
               status={gameStatusLabel}
@@ -188,7 +197,6 @@ function canAiMove(gameStatus: ChessGameStatus): boolean {
 function shouldAutoRequestAiMove({
   aiSide,
   gameStatus,
-  isAiAutoPlayBlocked,
   isEngineThinking,
   latestError,
   pendingPromotion,
@@ -196,14 +204,12 @@ function shouldAutoRequestAiMove({
 }: {
   aiSide: GameStoreState['aiSide'];
   gameStatus: ChessGameStatus;
-  isAiAutoPlayBlocked: boolean;
   isEngineThinking: boolean;
   latestError: string | null;
   pendingPromotion: GameStoreState['pendingPromotion'];
   sideToMove: GameStoreState['sideToMove'];
 }): boolean {
   return (
-    !isAiAutoPlayBlocked &&
     latestError === null &&
     pendingPromotion === null &&
     !isEngineThinking &&
