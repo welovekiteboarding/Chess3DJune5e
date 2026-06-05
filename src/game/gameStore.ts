@@ -107,18 +107,18 @@ export function createGameStore(options: CreateGameStoreOptions) {
       const gameState = getGameState(state);
 
       if (getTurn(gameState) !== state.humanSide) {
-        set({
-          selectedSquare: null,
-          legalDestinationSquares: [],
-        });
+        return;
+      }
+
+      const legalMoves = getLegalMoves(gameState, square);
+
+      if (legalMoves.length === 0) {
         return;
       }
 
       set({
         selectedSquare: square,
-        legalDestinationSquares: getLegalMoves(gameState, square).map(
-          (move) => move.to,
-        ),
+        legalDestinationSquares: legalMoves.map((move) => move.to),
       });
     },
 

@@ -38,6 +38,42 @@ describe('gameStore', () => {
     );
   });
 
+  it('does not select an opponent piece when it is not that side to move', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    store.getState().selectSquare('e7');
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+  });
+
+  it('does not select an empty square when there is no active selection', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    store.getState().selectSquare('e4');
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+  });
+
+  it('replaces the selected square when another legal human piece is selected', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    store.getState().selectSquare('e2');
+    store.getState().selectSquare('g1');
+
+    expect(store.getState().selectedSquare).toBe('g1');
+    expect(store.getState().legalDestinationSquares).toEqual(
+      expect.arrayContaining(['f3', 'h3']),
+    );
+  });
+
   it('applies e2e4 successfully without auto-requesting an engine move', () => {
     const engine = createFakeEngine();
     const store = createGameStore({ engine });

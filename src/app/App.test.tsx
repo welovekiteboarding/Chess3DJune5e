@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
@@ -40,6 +40,27 @@ describe('App', () => {
     expect(screen.getByTestId('board-scene-canvas')).toBeInTheDocument();
     expect(screen.getByText('Status: In progress')).toBeInTheDocument();
     expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
+  });
+
+  it('wires board square selection into the game store', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+
+    expect(store.getState().selectedSquare).toBe('e2');
+    expect(store.getState().legalDestinationSquares).toEqual(
+      expect.arrayContaining(['e3', 'e4']),
+    );
   });
 
   it('does not retry AI requests in a loop after an engine failure', async () => {
