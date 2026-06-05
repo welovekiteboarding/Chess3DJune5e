@@ -298,6 +298,51 @@ describe('stockfishEngine', () => {
     expect(engine.state).toBe('ready');
   });
 
+  it('rejects a malformed bestmove response instead of hanging the search', async () => {
+    const transport = new FakeUciTransport();
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+    });
+    const fen = '4k3/8/8/8/8/8/8/4K3 w - - 0 1';
+
+    const bestMovePromise = engine.requestBestMove({ fen });
+
+    await waitFor(() => transport.commands.length === 1);
+    transport.emit('uciok');
+    await waitFor(() => transport.commands.length === 2);
+    transport.emit('readyok');
+    await waitFor(() => transport.commands.length === 4);
+
+    transport.emit('info depth 10 score cp 16', 'bestmove nope');
+
+    await expect(bestMovePromise).rejects.toThrow(
+      'Stockfish returned an invalid bestmove response.',
+    );
+    expect(engine.state).toBe('ready');
+  });
+
+  it('surfaces an engine boot failure with a stable error message', async () => {
+    const transport: UciTransport = {
+      send() {
+        throw new Error('worker crashed');
+      },
+      onLine() {
+        return () => {};
+      },
+      terminate() {},
+    };
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+    });
+
+    await expect(
+      engine.requestBestMove({
+        fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1',
+      }),
+    ).rejects.toThrow('Stockfish failed to initialize: worker crashed');
+    expect(engine.state).toBe('idle');
+  });
+
   it('supports package engines that expose sendCommand and listener', async () => {
     const packageEngine = new FakeStockfishPackageEngine();
     const engine = createStockfishEngine({

@@ -199,6 +199,32 @@ describe('App', () => {
     });
   });
 
+  it('renders the latest engine failure through the panel alert region', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockRejectedValue(new Error('Engine offline'));
+
+    const store = createGameStore({
+      engine,
+    });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    render(
+      <App
+        autoRequestAiMoves
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('alert', { name: 'Engine error' }),
+      ).toHaveTextContent('Latest error: Engine offline'),
+    );
+  });
+
   it('auto-requests the opening AI move by default when the human plays black', async () => {
     const engine = createFakeEngine();
     engine.requestBestMove.mockResolvedValue({

@@ -9,6 +9,7 @@ import type {
 } from './engineTypes';
 import { STOCKFISH_SEARCH_SETTINGS_BY_DIFFICULTY } from './engineTypes';
 import {
+  isBestMoveLine,
   isReadyOkLine,
   isUciOkLine,
   parseBestMoveLine,
@@ -107,6 +108,11 @@ export class StockfishSearchCancelledError extends Error {
     this.reason = reason;
   }
 }
+
+const STOCKFISH_BOOT_ERROR_PREFIX = 'Stockfish failed to initialize';
+const STOCKFISH_REQUEST_ERROR_PREFIX = 'Stockfish move request failed';
+const STOCKFISH_INVALID_BESTMOVE_ERROR =
+  'Stockfish returned an invalid bestmove response.';
 
 export class StockfishEngine implements AsyncEngineAdapter {
   private difficulty: AiDifficulty;
@@ -237,9 +243,13 @@ export class StockfishEngine implements AsyncEngineAdapter {
     pendingSearch: PendingSearch,
   ): Promise<void> {
     try {
-      await this.ensureReady();
+      await this.ensureReady().catch((error) => {
+        throw toStockfishFailure(error, STOCKFISH_BOOT_ERROR_PREFIX);
+      });
 
-      const transport = await this.getTransport();
+      const transport = await this.getTransport().catch((error) => {
+        throw toStockfishFailure(error, STOCKFISH_BOOT_ERROR_PREFIX);
+      });
 
       this.assertSearchIsActive(pendingSearch);
       this.stateValue = 'searching';
@@ -248,12 +258,16 @@ export class StockfishEngine implements AsyncEngineAdapter {
         pendingSearch,
         transport,
         `position fen ${pendingSearch.request.fen}`,
-      );
+      ).catch((error) => {
+        throw toStockfishFailure(error, STOCKFISH_REQUEST_ERROR_PREFIX);
+      });
       await this.sendCommandForActiveSearch(
         pendingSearch,
         transport,
         getGoCommandForDifficulty(pendingSearch.difficulty),
-      );
+      ).catch((error) => {
+        throw toStockfishFailure(error, STOCKFISH_REQUEST_ERROR_PREFIX);
+      });
     } catch (error) {
       this.finishSearchWithError(pendingSearch, error);
     }
@@ -326,13 +340,20 @@ export class StockfishEngine implements AsyncEngineAdapter {
       );
     }
 
-    const parsedBestMove = parseBestMoveLine(line);
-
-    if (!parsedBestMove) {
+    if (!isBestMoveLine(line)) {
       return;
     }
 
     const pendingSearch = this.pendingSearch;
+    const parsedBestMove = parseBestMoveLine(line);
+
+    if (!parsedBestMove) {
+      this.finishSearchWithError(
+        pendingSearch,
+        new Error(STOCKFISH_INVALID_BESTMOVE_ERROR),
+      );
+      return;
+    }
 
     this.pendingSearch = null;
 
@@ -498,6 +519,16 @@ function attachMessageListener(
       target.onmessage = previousHandler;
     }
   };
+}
+
+function toStockfishFailure(error: unknown, prefix: string): unknown {
+  if (error instanceof StockfishSearchCancelledError) {
+    return error;
+  }
+
+  const detail = error instanceof Error ? error.message : null;
+
+  return new Error(detail ? `${prefix}: ${detail}` : prefix);
 }
 
 function attachLineListenerProperty(

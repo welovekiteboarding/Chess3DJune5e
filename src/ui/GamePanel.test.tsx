@@ -37,6 +37,28 @@ describe('GamePanel', () => {
     ).toBeInTheDocument();
   });
 
+  it('announces the latest engine error through an accessible alert region', () => {
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        latestError="Engine lost connection."
+        moveHistory={[]}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="White to move"
+        status="Check"
+      />,
+    );
+
+    const alert = screen.getByRole('alert', { name: 'Engine error' });
+
+    expect(alert).toHaveAttribute('aria-live', 'assertive');
+    expect(alert).toHaveTextContent('Latest error: Engine lost connection.');
+  });
+
   it('invokes the new game callback when the control is activated', () => {
     const handleNewGame = vi.fn();
 
