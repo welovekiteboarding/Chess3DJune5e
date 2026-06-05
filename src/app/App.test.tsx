@@ -83,6 +83,7 @@ describe('App', () => {
 
     render(
       <App
+        autoRequestAiMoves={false}
         boardSceneCanvasBoundary={TestCanvasBoundary}
         store={store}
       />,
@@ -119,6 +120,7 @@ describe('App', () => {
 
     render(
       <App
+        autoRequestAiMoves={false}
         boardSceneCanvasBoundary={TestCanvasBoundary}
         store={store}
       />,
@@ -192,6 +194,32 @@ describe('App', () => {
     await waitFor(() => {
       expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('auto-requests the opening AI move by default when the human plays black', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockResolvedValue({
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      move: 'e2e4',
+    });
+
+    const store = createGameStore({
+      engine,
+      humanSide: 'black',
+    });
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(engine.requestBestMove).toHaveBeenCalledWith({
+        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      }),
+    );
   });
 
   it('shows the promotion UI when the store has a pending promotion', () => {
