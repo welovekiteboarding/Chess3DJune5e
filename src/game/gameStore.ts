@@ -452,7 +452,7 @@ function createNoopEngine(difficulty: AiDifficulty): AsyncEngineAdapter {
     async setDifficulty() {},
     async requestBestMove(request) {
       return {
-        move: 'a2a3',
+        move: getFallbackEngineMove(request.fen),
         difficulty,
         fen: request.fen,
       };
@@ -464,4 +464,8 @@ function createNoopEngine(difficulty: AiDifficulty): AsyncEngineAdapter {
 
 function toErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+function getFallbackEngineMove(fen: string): ChessUciMove {
+  return fen.includes(' w ') ? 'e2e4' : 'e7e5';
 }

@@ -235,11 +235,11 @@ function createFakeEngine(): AsyncEngineAdapter {
   return {
     state: 'ready',
     async setDifficulty() {},
-    async requestBestMove() {
+    async requestBestMove(request) {
       return {
-        move: 'e2e4',
+        move: request.fen.includes(' w ') ? 'e2e4' : 'e7e5',
         difficulty: 'medium',
-        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        fen: request.fen,
       };
     },
     async cancelSearch() {},
