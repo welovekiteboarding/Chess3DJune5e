@@ -13,6 +13,7 @@ import {
 import { createGameStore, type GameStore } from '../game/gameStore';
 import { BoardScene, type BoardSceneCanvasProps } from '../scene/BoardScene';
 import { GamePanel } from '../ui/GamePanel';
+import { PromotionDialog } from '../ui/PromotionDialog';
 import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-asm.js?url';
 
 const difficultyOptions = [
@@ -73,6 +74,8 @@ export function App({
     aiDifficulty,
     aiSide,
     clearSelection,
+    completePendingPromotion,
+    cancelPendingPromotion,
     currentFen,
     gameStatus,
     humanSide,
@@ -80,6 +83,7 @@ export function App({
     latestError,
     legalDestinationSquares,
     moveHistory,
+    pendingPromotion,
     requestAiMove,
     selectSquare,
     selectedSquare,
@@ -191,6 +195,13 @@ export function App({
             <span>{statusLabel}</span>
           </div>
           <div className="panel-scroll">
+            {pendingPromotion ? (
+              <PromotionDialog
+                choices={pendingPromotion.choices}
+                onCancel={cancelPendingPromotion}
+                onChoose={completePendingPromotion}
+              />
+            ) : null}
             <GamePanel
               aiSide={capitalizeLabel(aiSide)}
               difficultyOptions={difficultyOptions}
