@@ -449,6 +449,44 @@ describe('gameStore', () => {
     );
   });
 
+  it('does not start an engine search if cancellation happens while setting difficulty', async () => {
+    const engine = createFakeEngine();
+    const deferredDifficulty = createDeferred<void>();
+    engine.setDifficulty.mockReturnValue(deferredDifficulty.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    const pendingRequest = store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+    expect(engine.setDifficulty).toHaveBeenCalledTimes(1);
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+
+    store.getState().cancelAiMove();
+
+    expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
+    expect(store.getState().isEngineThinking).toBe(false);
+
+    deferredDifficulty.resolve();
+
+    await expect(pendingRequest).resolves.toEqual({
+      ok: false,
+      error: 'AI move request was superseded.',
+    });
+
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+  });
+
   it('ignores a late AI response that arrives after cancellation', async () => {
     const engine = createFakeEngine();
     const deferredResponse = createDeferred<BestMoveResponse>();
