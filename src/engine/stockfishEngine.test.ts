@@ -76,6 +76,37 @@ describe('stockfishEngine', () => {
     });
   });
 
+  it('cancels a request before readiness completes without starting a search', async () => {
+    const transport = new FakeUciTransport();
+    const engine = createStockfishEngine({
+      transportFactory: () => transport,
+    });
+    const fen = '8/8/8/8/8/8/8/8 w - - 0 1';
+
+    const bestMovePromise = engine.requestBestMove({ fen });
+    void bestMovePromise.catch(() => undefined);
+
+    await waitFor(() => transport.commands.length === 1);
+    expect(transport.commands).toEqual(['uci']);
+
+    await expect(engine.cancelSearch()).resolves.toBeUndefined();
+
+    transport.emit('uciok');
+    await waitFor(() => transport.commands.includes('isready'));
+    transport.emit('readyok');
+    await flushAsyncWork();
+
+    expect(transport.commands).toContain('isready');
+    expect(transport.commands).not.toContain(`position fen ${fen}`);
+    expect(transport.commands).not.toContain('go depth 10');
+    await expect(
+      rejectsWithin(bestMovePromise, 100),
+    ).resolves.toMatchObject({
+      name: 'StockfishSearchCancelledError',
+      reason: 'cancelled',
+    });
+  });
+
   it('exposes cancellation and disposal without throwing', async () => {
     const transport = new FakeUciTransport();
     const engine = createStockfishEngine({
@@ -85,6 +116,7 @@ describe('stockfishEngine', () => {
     const bestMovePromise = engine.requestBestMove({
       fen: '8/8/8/8/8/8/8/8 w - - 0 1',
     });
+    void bestMovePromise.catch(() => undefined);
 
     await waitFor(() => transport.commands.length === 1);
     transport.emit('uciok');
@@ -119,4 +151,35 @@ async function waitFor(
       setTimeout(resolve, 0);
     });
   }
+}
+
+async function rejectsWithin<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<unknown> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      promise.then(
+        () => Promise.reject(new Error('Expected promise to reject.')),
+        (error) => error,
+      ),
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error('Timed out waiting for promise rejection.'));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+async function flushAsyncWork(): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 }

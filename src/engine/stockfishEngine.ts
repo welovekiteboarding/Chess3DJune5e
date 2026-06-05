@@ -136,20 +136,16 @@ export class StockfishEngine implements AsyncEngineAdapter {
       throw new Error('A Stockfish search is already in progress.');
     }
 
-    await this.ensureReady();
-    const transport = await this.getTransport();
-
-    this.stateValue = 'searching';
-
     return new Promise<BestMoveResponse>((resolve, reject) => {
-      this.pendingSearch = {
+      const pendingSearch: PendingSearch = {
         difficulty: this.difficulty,
         reject,
         request,
         resolve,
       };
 
-      void this.sendBestMoveCommands(transport, request);
+      this.pendingSearch = pendingSearch;
+      void this.runBestMoveRequest(pendingSearch);
     });
   }
 
@@ -163,17 +159,16 @@ export class StockfishEngine implements AsyncEngineAdapter {
     }
 
     this.pendingSearch = null;
+    pendingSearch.reject(new StockfishSearchCancelledError(reason));
+
+    if (!this.isDisposed()) {
+      this.stateValue = this.initialized ? 'ready' : 'idle';
+    }
 
     const transport = await this.getTransport().catch(() => null);
 
     if (transport) {
       await Promise.resolve(transport.send('stop')).catch(() => undefined);
-    }
-
-    pendingSearch.reject(new StockfishSearchCancelledError(reason));
-
-    if (!this.isDisposed()) {
-      this.stateValue = this.initialized ? 'ready' : 'idle';
     }
   }
 
@@ -187,14 +182,13 @@ export class StockfishEngine implements AsyncEngineAdapter {
 
     const pendingSearch = this.pendingSearch;
     this.pendingSearch = null;
+    pendingSearch?.reject(new StockfishSearchCancelledError('disposed'));
 
     const transport = await this.transportPromise?.catch(() => null);
 
     if (transport && pendingSearch) {
       await Promise.resolve(transport.send('stop')).catch(() => undefined);
     }
-
-    pendingSearch?.reject(new StockfishSearchCancelledError('disposed'));
     this.unsubscribeFromLines?.();
     this.unsubscribeFromLines = null;
 
@@ -220,6 +214,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
 
       await Promise.resolve(transport.send('uci'));
       await uciOk;
+      this.assertUsable();
 
       this.initialized = true;
     }
@@ -228,28 +223,56 @@ export class StockfishEngine implements AsyncEngineAdapter {
 
     await Promise.resolve(transport.send('isready'));
     await readyOk;
+    this.assertUsable();
 
     if (!this.isDisposed() && !this.pendingSearch) {
       this.stateValue = 'ready';
     }
   }
 
-  private async sendBestMoveCommands(
-    transport: UciTransport,
-    request: BestMoveRequest,
+  private async runBestMoveRequest(
+    pendingSearch: PendingSearch,
   ): Promise<void> {
     try {
-      await Promise.resolve(transport.send(`position fen ${request.fen}`));
-      await Promise.resolve(
-        transport.send(getGoCommandForDifficulty(this.difficulty)),
+      await this.ensureReady();
+
+      const transport = await this.getTransport();
+
+      this.assertSearchIsActive(pendingSearch);
+      this.stateValue = 'searching';
+
+      await this.sendCommandForActiveSearch(
+        pendingSearch,
+        transport,
+        `position fen ${pendingSearch.request.fen}`,
+      );
+      await this.sendCommandForActiveSearch(
+        pendingSearch,
+        transport,
+        getGoCommandForDifficulty(pendingSearch.difficulty),
       );
     } catch (error) {
-      this.finishSearchWithError(error);
+      this.finishSearchWithError(pendingSearch, error);
     }
   }
 
-  private finishSearchWithError(error: unknown): void {
-    const pendingSearch = this.pendingSearch;
+  private async sendCommandForActiveSearch(
+    pendingSearch: PendingSearch,
+    transport: UciTransport,
+    command: string,
+  ): Promise<void> {
+    this.assertSearchIsActive(pendingSearch);
+    await Promise.resolve(transport.send(command));
+    this.assertSearchIsActive(pendingSearch);
+  }
+
+  private finishSearchWithError(
+    pendingSearch: PendingSearch,
+    error: unknown,
+  ): void {
+    if (this.pendingSearch !== pendingSearch) {
+      return;
+    }
 
     this.pendingSearch = null;
 
@@ -257,7 +280,7 @@ export class StockfishEngine implements AsyncEngineAdapter {
       this.stateValue = this.initialized ? 'ready' : 'idle';
     }
 
-    pendingSearch?.reject(error);
+    pendingSearch.reject(error);
   }
 
   private async getTransport(): Promise<UciTransport> {
@@ -344,6 +367,16 @@ export class StockfishEngine implements AsyncEngineAdapter {
 
   private isDisposed(): boolean {
     return this.stateValue === 'disposed';
+  }
+
+  private assertSearchIsActive(pendingSearch: PendingSearch): void {
+    if (this.pendingSearch !== pendingSearch) {
+      throw new StockfishSearchCancelledError(
+        this.isDisposed() ? 'disposed' : 'cancelled',
+      );
+    }
+
+    this.assertUsable();
   }
 }
 
