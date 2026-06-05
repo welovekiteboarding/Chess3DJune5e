@@ -1,4 +1,12 @@
-export type ChessPromotionPiece = 'q' | 'r' | 'b' | 'n';
+export const CHESS_PROMOTION_PIECES = [
+  'queen',
+  'rook',
+  'bishop',
+  'knight',
+] as const;
+
+export type ChessPromotionPiece = (typeof CHESS_PROMOTION_PIECES)[number];
+export type ChessPromotionPieceCode = 'q' | 'r' | 'b' | 'n';
 
 type ChessFile = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h';
 type ChessRank = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
@@ -6,7 +14,7 @@ type ChessRank = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
 export type ChessSquare = `${ChessFile}${ChessRank}`;
 export type ChessUciMove =
   | `${ChessSquare}${ChessSquare}`
-  | `${ChessSquare}${ChessSquare}${ChessPromotionPiece}`;
+  | `${ChessSquare}${ChessSquare}${ChessPromotionPieceCode}`;
 
 export type ChessPlayer = 'white' | 'black';
 export type ChessPiece = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king';

@@ -5,6 +5,8 @@ import { getPiecePlacementsFromFen } from '../chess/chessRules';
 import { createGameStore } from './gameStore';
 
 describe('gameStore', () => {
+  const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+
   it('initializes a local human-vs-AI game from the starting position', () => {
     const engine = createFakeEngine();
     const store = createGameStore({ engine });
@@ -141,6 +143,83 @@ describe('gameStore', () => {
     expect(store.getState().currentFen).toBe(startingFen);
     expect(store.getState().moveHistory).toEqual([]);
     expect(store.getState().latestError).toBe('Illegal move: e2e5');
+  });
+
+  it('enters pending promotion state instead of applying an incomplete human promotion move', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    const result = store.getState().attemptHumanMove('e8');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Human promotion piece selection is required.',
+    });
+    expect(store.getState().currentFen).toBe(promotionReadyFen);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().pendingPromotion).toEqual({
+      from: 'e7',
+      to: 'e8',
+      choices: ['queen', 'rook', 'bishop', 'knight'],
+    });
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it('completes a pending promotion with queen and clears pending promotion state', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    const result = store.getState().completePendingPromotion('queen');
+
+    expect(result).toEqual({
+      ok: true,
+      move: {
+        from: 'e7',
+        to: 'e8',
+        promotion: 'queen',
+        uci: 'e7e8q',
+      },
+    });
+    expect(store.getState().currentFen).toBe('4Q2k/8/8/8/8/8/8/4K3 b - - 0 1');
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e7e8q',
+      },
+    ]);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().latestError).toBeNull();
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it('cancels a pending promotion without changing the position', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+    store.getState().cancelPendingPromotion();
+
+    expect(store.getState().currentFen).toBe(promotionReadyFen);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().latestError).toBeNull();
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
   it('applies a valid fake AI move through the same chess validation boundary', () => {
