@@ -9,9 +9,17 @@ export type ChessUciMove =
   | `${ChessSquare}${ChessSquare}${ChessPromotionPiece}`;
 
 export type ChessPlayer = 'white' | 'black';
+export type ChessPiece = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king';
 
 export interface ChessGameState {
   fen: string;
+}
+
+export interface ChessPiecePlacement {
+  renderId: string;
+  square: ChessSquare;
+  color: ChessPlayer;
+  piece: ChessPiece;
 }
 
 export interface ChessMove {

@@ -1,16 +1,7 @@
 import { Canvas } from '@react-three/fiber';
 import type { ComponentType, PropsWithChildren } from 'react';
 
-import type { ChessSquare } from '../chess/chessTypes';
-
-type PieceKind = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king';
-type PieceColor = 'white' | 'black';
-
-export interface BoardScenePiecePlacement {
-  square: ChessSquare;
-  piece: PieceKind;
-  color: PieceColor;
-}
+import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 
 export interface BoardSceneCanvasProps extends PropsWithChildren {
   className?: string;
@@ -19,7 +10,7 @@ export interface BoardSceneCanvasProps extends PropsWithChildren {
 export interface BoardSceneProps {
   selectedSquare: ChessSquare | null;
   legalDestinationSquares: readonly ChessSquare[];
-  piecePlacements?: readonly BoardScenePiecePlacement[];
+  piecePlacements?: readonly ChessPiecePlacement[];
   onSquareSelect?: (square: ChessSquare) => void;
   CanvasBoundary?: ComponentType<BoardSceneCanvasProps>;
   className?: string;
@@ -114,7 +105,7 @@ export function BoardScene({
             const position = getPiecePosition(piecePlacement.square);
 
             return (
-              <group key={`${piecePlacement.color}-${piecePlacement.piece}-${piecePlacement.square}`}>
+              <group key={piecePlacement.renderId}>
                 <mesh
                   castShadow
                   onClick={() => onSquareSelect?.(piecePlacement.square)}
@@ -169,9 +160,19 @@ export function BoardScene({
         <ul aria-label="Piece placements">
           {piecePlacements.map((piecePlacement) => (
             <li
-              key={`${piecePlacement.color}-${piecePlacement.piece}-${piecePlacement.square}-fallback`}
+              data-color={piecePlacement.color}
+              data-piece={piecePlacement.piece}
+              data-render-id={piecePlacement.renderId}
+              data-square={piecePlacement.square}
+              data-testid="board-piece"
+              key={piecePlacement.renderId}
             >
-              {piecePlacement.color} {piecePlacement.piece} on {piecePlacement.square}
+              <span
+                data-square={piecePlacement.square}
+                data-testid={`board-piece-${piecePlacement.renderId}`}
+              >
+                {piecePlacement.color} {piecePlacement.piece} on {piecePlacement.square}
+              </span>
             </li>
           ))}
         </ul>

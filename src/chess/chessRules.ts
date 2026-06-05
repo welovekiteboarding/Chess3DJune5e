@@ -7,6 +7,8 @@ import type {
   ChessLoadResult,
   ChessMove,
   ChessMoveResult,
+  ChessPiece,
+  ChessPiecePlacement,
   ChessPlayer,
   ChessPromotionPiece,
   ChessSquare,
@@ -15,6 +17,15 @@ import type {
 
 const UCI_MOVE_PATTERN = /^([a-h][1-8])([a-h][1-8])([qrbn])?$/;
 const CHESS_SQUARE_PATTERN = /^[a-h][1-8]$/;
+const BOARD_FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
+const FEN_PIECE_MAP: Record<string, ChessPiece> = {
+  p: 'pawn',
+  n: 'knight',
+  b: 'bishop',
+  r: 'rook',
+  q: 'queen',
+  k: 'king',
+};
 
 type ChessJsMove = {
   from: ChessSquare;
@@ -159,6 +170,44 @@ export function getGameStatus(gameState: ChessGameState): ChessGameStatus {
   };
 }
 
+export function getPiecePlacementsFromFen(fen: string): ChessPiecePlacement[] {
+  const loadResult = loadGameStateFromFen(fen);
+
+  if (!loadResult.ok) {
+    return [];
+  }
+
+  const [boardState] = loadResult.gameState.fen.split(' ');
+
+  if (!boardState) {
+    return [];
+  }
+
+  return boardState.split('/').flatMap((rank, rankIndex) => {
+    const piecePlacements: ChessPiecePlacement[] = [];
+    let fileIndex = 0;
+
+    for (const symbol of rank) {
+      const emptySquares = Number(symbol);
+
+      if (Number.isInteger(emptySquares) && emptySquares > 0) {
+        fileIndex += emptySquares;
+        continue;
+      }
+
+      const piecePlacement = createPiecePlacement(symbol, fileIndex, rankIndex);
+
+      if (piecePlacement) {
+        piecePlacements.push(piecePlacement);
+      }
+
+      fileIndex += 1;
+    }
+
+    return piecePlacements;
+  });
+}
+
 function fromGameState(gameState: ChessGameState): Chess {
   return new Chess(gameState.fen);
 }
@@ -220,6 +269,32 @@ function parseUciMove(uciMove: string): ChessMove | null {
 
 function isChessSquare(square: string): square is ChessSquare {
   return CHESS_SQUARE_PATTERN.test(square);
+}
+
+function createPiecePlacement(
+  symbol: string,
+  fileIndex: number,
+  rankIndex: number,
+): ChessPiecePlacement | null {
+  const file = BOARD_FILES[fileIndex];
+  const rank = 8 - rankIndex;
+  const normalizedSymbol = symbol.toLowerCase();
+  const piece = FEN_PIECE_MAP[normalizedSymbol];
+
+  if (!piece || !file || rank < 1 || rank > 8) {
+    return null;
+  }
+
+  const square = `${file}${rank}` as ChessSquare;
+  const color: ChessPlayer =
+    symbol === normalizedSymbol ? 'black' : 'white';
+
+  return {
+    renderId: `${color}-${piece}-${square}`,
+    square,
+    color,
+    piece,
+  };
 }
 
 function invalidFenResult(fen: string): ChessLoadResult {
