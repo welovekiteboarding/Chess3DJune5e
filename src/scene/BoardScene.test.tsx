@@ -212,6 +212,39 @@ describe('BoardScene', () => {
     expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
   });
 
+  it('updates camera distance from wheel input and lets reset restore the default zoom', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={InteractiveTestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    const canvas = screen.getByTestId('interactive-board-scene-canvas');
+    const canvasShell = screen.getByTestId('board-scene-canvas-shell');
+
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
+
+    fireEvent.wheel(canvasShell, { deltaMode: WheelEvent.DOM_DELTA_PIXEL, deltaY: 180 });
+
+    const zoomedOutDistance = Number(canvas.getAttribute('data-distance'));
+
+    expect(zoomedOutDistance).toBeGreaterThan(10.4);
+    expect(canvas).toHaveAttribute('data-view-mode', 'custom');
+
+    fireEvent.wheel(canvasShell, { deltaMode: WheelEvent.DOM_DELTA_PIXEL, deltaY: -260 });
+
+    const zoomedInDistance = Number(canvas.getAttribute('data-distance'));
+
+    expect(zoomedInDistance).toBeLessThan(zoomedOutDistance);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
+
+    expect(canvas).toHaveAttribute('data-view-mode', 'default');
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
+  });
+
   it('keeps horizontal camera orbit unbounded across repeated full rotations', () => {
     render(
       <BoardScene
