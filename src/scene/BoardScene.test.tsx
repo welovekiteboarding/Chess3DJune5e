@@ -555,6 +555,147 @@ describe('BoardScene', () => {
     }
   });
 
+  it('tracks overlapping normal-move transitions for consecutive human and AI turns', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-e7',
+              square: 'e7',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-e7',
+              square: 'e7',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(120);
+      });
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-e5',
+              square: 'e5',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e2')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-e4')).toHaveAttribute(
+        'data-piece',
+        'white pawn',
+      );
+      expect(screen.getByTestId('board-square-e7')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-e5')).toHaveAttribute(
+        'data-piece',
+        'black pawn',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '2',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-from-square',
+        'e7',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-to-square',
+        'e5',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('skips piece move transitions when reduced motion is enabled', async () => {
     const originalMatchMedia = window.matchMedia;
 
