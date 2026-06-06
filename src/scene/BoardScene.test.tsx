@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 import {
@@ -545,6 +552,85 @@ describe('BoardScene', () => {
     } finally {
       vi.clearAllTimers();
       vi.useRealTimers();
+    }
+  });
+
+  it('skips piece move transitions when reduced motion is enabled', async () => {
+    const originalMatchMedia = window.matchMedia;
+
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    })) as typeof window.matchMedia;
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+          'data-prefers-reduced-motion',
+          'true',
+        ),
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-animation-duration-ms',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-from-square',
+        'e4',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-to-square',
+        'e4',
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
     }
   });
 

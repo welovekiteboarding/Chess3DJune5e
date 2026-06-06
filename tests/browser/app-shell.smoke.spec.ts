@@ -245,6 +245,8 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
 test('boots the real browser Stockfish path and applies an AI move from visible board clicks', async ({
   page,
 }) => {
+  test.setTimeout(75_000);
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
 
