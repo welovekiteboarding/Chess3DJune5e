@@ -215,6 +215,21 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(e4HitTarget).toBeVisible();
   await expect(g1HitTarget).toBeVisible();
   await expect(f3HitTarget).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Command deck' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 3, name: 'Match status' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 3, name: 'Stockfish' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 3, name: 'Move history' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 3, name: 'Game controls' }),
+  ).toBeVisible();
   await expect(page.locator('[data-testid^="board-square-"]')).toHaveCount(64);
   await expect(page.getByText('No moves yet.')).toBeVisible();
   await expect(page.getByText('Latest error: None')).toBeVisible();
@@ -259,7 +274,9 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
     return {
       boardBottom: boardRegion.getBoundingClientRect().bottom,
+      boardWidth: boardRegion.getBoundingClientRect().width,
       panelBottom: panelRegion.getBoundingClientRect().bottom,
+      panelWidth: panelRegion.getBoundingClientRect().width,
       scrollHeight: scrollingElement.scrollHeight,
       scrollTop: scrollingElement.scrollTop,
       viewportHeight: window.innerHeight,
@@ -268,6 +285,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   expect(initialLayout.boardBottom).toBeLessThanOrEqual(initialLayout.viewportHeight);
   expect(initialLayout.panelBottom).toBeLessThanOrEqual(initialLayout.viewportHeight);
+  expect(initialLayout.boardWidth).toBeGreaterThan(initialLayout.panelWidth);
   expect(initialLayout.scrollHeight).toBeLessThanOrEqual(initialLayout.viewportHeight);
   expect(initialLayout.scrollTop).toBe(0);
 

@@ -30,6 +30,21 @@ describe('GamePanel', () => {
     expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
     expect(screen.getByText('Human side: White')).toBeInTheDocument();
     expect(screen.getByText('AI side: Black')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Command deck' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Match status' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Stockfish' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Game controls' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Move history' }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('game-panel-details')).toBeInTheDocument();
     expect(screen.getByTestId('game-panel-controls')).toBeInTheDocument();
     expect(screen.getByText('1. e4 e5')).toBeInTheDocument();
@@ -266,6 +281,8 @@ describe('GamePanel', () => {
     const historyScroll = screen.getByTestId('move-history-scroll');
     const moveHistoryList = screen.getByTestId('move-history-list');
 
+    expect(screen.getByTestId('game-panel-status')).toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-engine')).toBeInTheDocument();
     expect(historySection).toHaveClass('game-panel__history');
     expect(historyScroll).toHaveClass('game-panel__history-scroll');
     expect(moveHistoryList).toHaveClass('game-panel__history-list');

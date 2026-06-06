@@ -44,9 +44,42 @@ describe('App', () => {
       screen.getByRole('region', { name: 'Panel region' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('board-scene-canvas')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 2,
+        name: 'Command deck',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 3,
+        name: 'Match status',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 3,
+        name: 'Stockfish',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 3,
+        name: 'Move history',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 3,
+        name: 'Game controls',
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Status: Ongoing')).toBeInTheDocument();
     expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
     expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
+    expect(
+      screen.getByRole('toolbar', { name: 'Board camera controls' }),
+    ).toBeVisible();
   });
 
   it('wires board square selection into the game store', () => {
