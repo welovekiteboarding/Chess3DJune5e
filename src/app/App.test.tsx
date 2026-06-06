@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
 import { createGameStore } from '../game/gameStore';
 import type { BoardSceneCanvasProps } from '../scene/BoardScene';
-import { App } from './App';
+import { App, handleBoardSquareSelect } from './App';
 
 function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
   return <div data-testid="board-scene-canvas">{children}</div>;
@@ -338,6 +338,69 @@ describe('App', () => {
     );
     expect(screen.getByText('2. ai e7e5')).toBeInTheDocument();
     expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
+  });
+
+  it('ignores a duplicate visible-board destination click after the legal human move already succeeded', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    handleBoardSquareSelect(store, 'e2');
+    handleBoardSquareSelect(store, 'e4');
+    handleBoardSquareSelect(store, 'e4');
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().latestError).toBeNull();
+    expect(store.getState().latestErrorKind).toBeNull();
+  });
+
+  it('auto-requests the AI move even when a stale transient input error remains in state', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockResolvedValue({
+      difficulty: 'medium',
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      move: 'e7e5',
+    });
+
+    const store = createGameStore({
+      engine,
+    });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+    store.setState({
+      latestError: 'No square selected.',
+      latestErrorKind: 'input',
+    });
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() =>
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'human',
+          uci: 'e2e4',
+        },
+        {
+          player: 'ai',
+          uci: 'e7e5',
+        },
+      ]),
+    );
   });
 
   it('shows engine thinking during auto-play and clears the status after the AI move resolves', async () => {

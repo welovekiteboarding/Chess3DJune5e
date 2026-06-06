@@ -32,7 +32,6 @@ export function App({
     aiDifficulty,
     aiSide,
     cancelAiMove,
-    clearSelection,
     completePendingPromotion,
     cancelPendingPromotion,
     currentFen,
@@ -41,17 +40,16 @@ export function App({
     humanSide,
     isEngineThinking,
     latestError,
+    latestErrorKind,
     legalDestinationSquares,
     moveHistory,
     pendingPromotion,
     requestAiMove,
-    selectSquare,
     selectedSquare,
     setAiDifficulty,
     sideToMove,
     sideToMoveLabel,
     startNewGame,
-    attemptHumanMove,
   } = useStore(store, (state) => state);
 
   const piecePlacements = getPiecePlacementsFromFen(currentFen);
@@ -69,7 +67,7 @@ export function App({
         aiSide,
         gameStatus,
         isEngineThinking,
-        latestError,
+        latestErrorKind,
         pendingPromotion,
         sideToMove,
       })
@@ -83,24 +81,14 @@ export function App({
     autoRequestAiMoves,
     gameStatus,
     isEngineThinking,
-    latestError,
+    latestErrorKind,
     pendingPromotion,
     requestAiMove,
     sideToMove,
   ]);
 
   function handleSquareSelect(square: ChessSquare) {
-    if (selectedSquare === square) {
-      clearSelection();
-      return;
-    }
-
-    if (selectedSquare && legalDestinationSquares.includes(square)) {
-      attemptHumanMove(square);
-      return;
-    }
-
-    selectSquare(square);
+    handleBoardSquareSelect(store, square);
   }
 
   function handleDifficultyChange(nextDifficulty: AiDifficulty) {
@@ -113,6 +101,7 @@ export function App({
 
   const canRetryAiMove =
     latestError !== null &&
+    latestErrorKind === 'engine' &&
     pendingPromotion === null &&
     !isEngineThinking &&
     sideToMove === aiSide &&
@@ -190,6 +179,25 @@ export function App({
   );
 }
 
+export function handleBoardSquareSelect(store: GameStore, square: ChessSquare) {
+  const state = store.getState();
+
+  if (state.selectedSquare === square) {
+    state.clearSelection();
+    return;
+  }
+
+  if (
+    state.selectedSquare !== null &&
+    state.legalDestinationSquares.includes(square)
+  ) {
+    state.attemptHumanMove(square);
+    return;
+  }
+
+  state.selectSquare(square);
+}
+
 function canAiMove(gameStatus: ChessGameStatus): boolean {
   return gameStatus.kind === 'ongoing' || gameStatus.kind === 'check';
 }
@@ -198,19 +206,19 @@ function shouldAutoRequestAiMove({
   aiSide,
   gameStatus,
   isEngineThinking,
-  latestError,
+  latestErrorKind,
   pendingPromotion,
   sideToMove,
 }: {
   aiSide: GameStoreState['aiSide'];
   gameStatus: ChessGameStatus;
   isEngineThinking: boolean;
-  latestError: string | null;
+  latestErrorKind: GameStoreState['latestErrorKind'];
   pendingPromotion: GameStoreState['pendingPromotion'];
   sideToMove: GameStoreState['sideToMove'];
 }): boolean {
   return (
-    latestError === null &&
+    latestErrorKind !== 'engine' &&
     pendingPromotion === null &&
     !isEngineThinking &&
     sideToMove === aiSide &&

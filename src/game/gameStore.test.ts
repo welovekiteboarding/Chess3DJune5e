@@ -136,6 +136,33 @@ describe('gameStore', () => {
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
+  it('clears a transient input error after a later legal human move succeeds', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    expect(store.getState().attemptHumanMove('e4')).toEqual({
+      ok: false,
+      error: 'No square selected.',
+    });
+    expect(store.getState().latestError).toBe('No square selected.');
+    expect(store.getState().latestErrorKind).toBe('input');
+
+    store.getState().selectSquare('e2');
+    const result = store.getState().attemptHumanMove('e4');
+
+    expect(result).toEqual({
+      ok: true,
+      move: {
+        from: 'e2',
+        to: 'e4',
+        uci: 'e2e4',
+      },
+    });
+    expect(store.getState().latestError).toBeNull();
+    expect(store.getState().latestErrorKind).toBeNull();
+  });
+
   it('rejects an illegal human move without changing the position', () => {
     const store = createGameStore({
       engine: createFakeEngine(),

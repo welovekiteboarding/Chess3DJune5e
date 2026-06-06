@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import type { ComponentType, PropsWithChildren } from 'react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
@@ -37,6 +37,25 @@ const fallbackOnlyStyle = {
   whiteSpace: 'nowrap',
   border: 0,
 } as const;
+const interactionOverlayStyle = {
+  position: 'absolute',
+  inset: '38% 0 34% 0',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(8, 1fr)',
+  gridTemplateRows: 'repeat(8, 1fr)',
+  zIndex: 2,
+} as const;
+const interactionSquareStyle = {
+  appearance: 'none',
+  background: 'transparent',
+  border: 0,
+  cursor: 'pointer',
+  display: 'block',
+  height: '100%',
+  margin: 0,
+  padding: 0,
+  width: '100%',
+} as const;
 
 function DefaultBoardSceneCanvas({
   children,
@@ -65,100 +84,141 @@ export function BoardScene({
   const legalDestinationMarkers = Array.from(legalDestinationSet);
 
   return (
-    <section aria-label="3D chess board scene" className={className}>
-      <CanvasBoundary className={className}>
-        <color args={['#e8ecf4']} attach="background" />
-        <ambientLight intensity={0.8} />
-        <directionalLight
-          castShadow
-          intensity={1.1}
-          position={[6, 10, 8]}
-          shadow-mapSize-height={1024}
-          shadow-mapSize-width={1024}
-        />
-        <group rotation={[-0.72, 0, 0]}>
-          <mesh position={[0, -0.12, 0]} receiveShadow>
-            <boxGeometry args={[8.8, 0.2, 8.8]} />
-            <meshStandardMaterial color="#3b2f2a" />
-          </mesh>
-          {boardSquares.map((boardSquare) => {
-            const materialColor = getSquareColor({
-              boardSquare,
-              legalDestinationSet,
-              selectedSquare,
-            });
-            const [x, z] = getSquarePosition(boardSquare);
+    <section
+      aria-label="3D chess board scene"
+      className={className}
+      data-testid="board-scene"
+    >
+      <div
+        className="board-scene-canvas-shell"
+        data-testid="board-scene-canvas-shell"
+      >
+        <CanvasBoundary className="board-scene-canvas">
+          <color args={['#e8ecf4']} attach="background" />
+          <ambientLight intensity={0.8} />
+          <directionalLight
+            castShadow
+            intensity={1.1}
+            position={[6, 10, 8]}
+            shadow-mapSize-height={1024}
+            shadow-mapSize-width={1024}
+          />
+          <group rotation={[-0.72, 0, 0]}>
+            <mesh position={[0, -0.12, 0]} receiveShadow>
+              <boxGeometry args={[8.8, 0.2, 8.8]} />
+              <meshStandardMaterial color="#3b2f2a" />
+            </mesh>
+            {boardSquares.map((boardSquare) => {
+              const materialColor = getSquareColor({
+                boardSquare,
+                legalDestinationSet,
+                selectedSquare,
+              });
+              const [x, z] = getSquarePosition(boardSquare);
 
-            return (
-              <mesh
-                castShadow
-                key={boardSquare.square}
-                onClick={() => onSquareSelect?.(boardSquare.square)}
-                position={[x, 0, z]}
-                receiveShadow
-              >
-                <boxGeometry args={[squareSize, 0.18, squareSize]} />
-                <meshStandardMaterial color={materialColor} />
-              </mesh>
-            );
-          })}
-          {piecePlacements.map((piecePlacement) => {
-            const position = getPiecePosition(piecePlacement.square);
-
-            return (
-              <group key={piecePlacement.renderId}>
+              return (
                 <mesh
                   castShadow
-                  onClick={() => onSquareSelect?.(piecePlacement.square)}
-                  position={position}
+                  key={boardSquare.square}
+                  onClick={(event) =>
+                    handleSceneSquareClick(event, boardSquare.square, onSquareSelect)
+                  }
+                  position={[x, 0, z]}
+                  receiveShadow
                 >
-                  <cylinderGeometry args={[0.22, 0.3, 0.45, 24]} />
-                  <meshStandardMaterial
-                    color={piecePlacement.color === 'white' ? '#f8f4e8' : '#1d2430'}
-                  />
+                  <boxGeometry args={[squareSize, 0.18, squareSize]} />
+                  <meshStandardMaterial color={materialColor} />
                 </mesh>
-                <mesh castShadow position={[position[0], position[1] + 0.3, position[2]]}>
-                  <sphereGeometry args={[0.16, 20, 20]} />
-                  <meshStandardMaterial
-                    color={piecePlacement.color === 'white' ? '#ded3bc' : '#384152'}
-                  />
-                </mesh>
-              </group>
-            );
-          })}
-        </group>
-      </CanvasBoundary>
+              );
+            })}
+            {piecePlacements.map((piecePlacement) => {
+              const position = getPiecePosition(piecePlacement.square);
 
-      <div style={fallbackOnlyStyle}>
-        <div aria-label="Chess board squares" role="grid">
-          {boardSquares.map((boardSquare) => {
-            const piecePlacement = piecePlacements.find(
-              (entry) => entry.square === boardSquare.square,
-            );
-            const isSelected = boardSquare.square === selectedSquare;
-            const isLegalDestination = legalDestinationSet.has(boardSquare.square);
-            const pieceDescription = piecePlacement
-              ? `${piecePlacement.color} ${piecePlacement.piece}`
-              : 'empty';
+              return (
+                <group key={piecePlacement.renderId}>
+                  <mesh
+                    castShadow
+                    onClick={(event) =>
+                      handleSceneSquareClick(
+                        event,
+                        piecePlacement.square,
+                        onSquareSelect,
+                      )
+                    }
+                    position={position}
+                  >
+                    <cylinderGeometry args={[0.22, 0.3, 0.45, 24]} />
+                    <meshStandardMaterial
+                      color={
+                        piecePlacement.color === 'white' ? '#f8f4e8' : '#1d2430'
+                      }
+                    />
+                  </mesh>
+                  <mesh
+                    castShadow
+                    onClick={(event) =>
+                      handleSceneSquareClick(
+                        event,
+                        piecePlacement.square,
+                        onSquareSelect,
+                      )
+                    }
+                    position={[position[0], position[1] + 0.3, position[2]]}
+                  >
+                    <sphereGeometry args={[0.16, 20, 20]} />
+                    <meshStandardMaterial
+                      color={
+                        piecePlacement.color === 'white' ? '#ded3bc' : '#384152'
+                      }
+                    />
+                  </mesh>
+                </group>
+              );
+            })}
+          </group>
+        </CanvasBoundary>
+      </div>
 
-            return (
-              <button
-                aria-label={`${boardSquare.square} square`}
-                aria-pressed={isSelected}
-                data-legal-destination={String(isLegalDestination)}
-                data-piece={pieceDescription}
-                data-selected={String(isSelected)}
-                data-square={boardSquare.square}
-                data-testid={`board-square-${boardSquare.square}`}
-                key={boardSquare.square}
-                onClick={() => onSquareSelect?.(boardSquare.square)}
-                type="button"
-              >
-                {boardSquare.square}
-              </button>
-            );
-          })}
-        </div>
+      <div
+        aria-label="Chess board squares"
+        className="board-scene-interaction-overlay"
+        data-testid="board-scene-interaction-overlay"
+        role="grid"
+        style={interactionOverlayStyle}
+      >
+        {boardSquares.map((boardSquare) => {
+          const piecePlacement = piecePlacements.find(
+            (entry) => entry.square === boardSquare.square,
+          );
+          const isSelected = boardSquare.square === selectedSquare;
+          const isLegalDestination = legalDestinationSet.has(boardSquare.square);
+          const pieceDescription = piecePlacement
+            ? `${piecePlacement.color} ${piecePlacement.piece}`
+            : 'empty';
+
+          return (
+            <button
+              aria-label={`${boardSquare.square} square`}
+              aria-pressed={isSelected}
+              data-legal-destination={String(isLegalDestination)}
+              data-piece={pieceDescription}
+              data-selected={String(isSelected)}
+              data-square={boardSquare.square}
+              data-testid={`board-square-${boardSquare.square}`}
+              key={boardSquare.square}
+              onClick={() => onSquareSelect?.(boardSquare.square)}
+              style={interactionSquareStyle}
+              type="button"
+            />
+          );
+        })}
+      </div>
+
+      <div
+        className="board-scene-fallback"
+        data-testid="board-scene-fallback"
+        style={fallbackOnlyStyle}
+      >
         <ul aria-label="Legal destination squares">
           {legalDestinationMarkers.map((square) => (
             <li
@@ -244,4 +304,13 @@ function getSquareColor({
   }
 
   return boardSquare.isDark ? '#7a5a46' : '#efe6d6';
+}
+
+function handleSceneSquareClick(
+  event: ThreeEvent<MouseEvent>,
+  square: ChessSquare,
+  onSquareSelect?: (square: ChessSquare) => void,
+) {
+  event.stopPropagation();
+  onSquareSelect?.(square);
 }

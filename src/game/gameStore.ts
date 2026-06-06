@@ -35,6 +35,8 @@ export interface PendingPromotionState {
   choices: ChessPromotionPiece[];
 }
 
+export type GameErrorKind = 'input' | 'engine';
+
 export type GameMoveAttemptResult =
   | {
       ok: true;
@@ -60,6 +62,7 @@ export interface GameStoreState {
   aiDifficulty: AiDifficulty;
   isEngineThinking: boolean;
   latestError: string | null;
+  latestErrorKind: GameErrorKind | null;
   selectSquare: (square: ChessSquare) => void;
   clearSelection: () => void;
   attemptHumanMove: (
@@ -113,6 +116,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
     set({
       isEngineThinking: false,
       latestError: null,
+      latestErrorKind: null,
     });
     void engine.cancelSearch().catch(() => undefined);
   };
@@ -126,6 +130,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       moveHistory: [],
       isEngineThinking: false,
       latestError: null,
+      latestErrorKind: null,
     }),
 
     selectSquare: (square) => {
@@ -193,6 +198,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
             choices: [...CHESS_PROMOTION_PIECES],
           },
           latestError: null,
+          latestErrorKind: null,
         });
 
         return {
@@ -237,6 +243,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       set({
         pendingPromotion: null,
         latestError: null,
+        latestErrorKind: null,
       });
     },
 
@@ -253,6 +260,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
           moveHistory: [],
           isEngineThinking: false,
           latestError: null,
+          latestErrorKind: null,
         }),
       }));
     },
@@ -263,10 +271,12 @@ export function createGameStore(options: CreateGameStoreOptions) {
         set({
           aiDifficulty: difficulty,
           latestError: null,
+          latestErrorKind: null,
         });
       } catch (error) {
         set({
           latestError: toErrorMessage(error, 'Failed to set AI difficulty.'),
+          latestErrorKind: 'engine',
         });
       }
     },
@@ -301,6 +311,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       set({
         isEngineThinking: true,
         latestError: null,
+        latestErrorKind: null,
       });
 
       let requestPromise: Promise<GameMoveAttemptResult> | null = null;
@@ -342,6 +353,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
               {
                 isEngineThinking: false,
               },
+              'engine',
             );
           }
 
@@ -369,6 +381,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
             {
               isEngineThinking: false,
             },
+            'engine',
           );
         } finally {
           if (pendingAiRequestPromise === requestPromise) {
@@ -399,6 +412,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       set({
         isEngineThinking: false,
         latestError: CANCELLED_AI_MOVE_ERROR,
+        latestErrorKind: 'engine',
       });
       void engine.cancelSearch().catch(() => undefined);
     },
@@ -454,9 +468,14 @@ function applyMoveResult({
   player: GameMoveRecord['player'];
 }): GameMoveAttemptResult {
   if (!result.ok) {
-    return failMoveAttempt(set, result.error.message, {
-      isEngineThinking: false,
-    });
+    return failMoveAttempt(
+      set,
+      result.error.message,
+      {
+        isEngineThinking: false,
+      },
+      player === 'ai' ? 'engine' : 'input',
+    );
   }
 
   const state = get();
@@ -476,6 +495,7 @@ function applyMoveResult({
       ],
       isEngineThinking: false,
       latestError: null,
+      latestErrorKind: null,
     }),
   });
 
@@ -489,10 +509,12 @@ function failMoveAttempt(
   set: SetGameStoreState,
   error: string,
   extraState: Partial<GameStoreState> = {},
+  kind: GameErrorKind = 'input',
 ): GameMoveAttemptResult {
   set({
     ...extraState,
     latestError: error,
+    latestErrorKind: kind,
   });
 
   return {
@@ -519,6 +541,7 @@ function buildStateSnapshot({
   moveHistory,
   isEngineThinking,
   latestError,
+  latestErrorKind,
 }: {
   gameState: ChessGameState;
   humanSide: ChessPlayer;
@@ -527,6 +550,7 @@ function buildStateSnapshot({
   moveHistory: GameMoveRecord[];
   isEngineThinking: boolean;
   latestError: string | null;
+  latestErrorKind: GameErrorKind | null;
 }) {
   const displayState = getGameDisplayState(gameState);
 
@@ -545,6 +569,7 @@ function buildStateSnapshot({
     aiDifficulty,
     isEngineThinking,
     latestError,
+    latestErrorKind,
   } satisfies Pick<
     GameStoreState,
     | 'currentFen'
@@ -561,6 +586,7 @@ function buildStateSnapshot({
     | 'aiDifficulty'
     | 'isEngineThinking'
     | 'latestError'
+    | 'latestErrorKind'
   >;
 }
 
