@@ -7,6 +7,10 @@ describe('sceneLighting', () => {
     expect(sceneLightingContract.playability).toBe(
       'default-overhead-readable',
     );
+    expect(sceneLightingContract.backgroundColor).toBe('#151d26');
+    expect(sceneLightingContract.fog.color).toBe('#111922');
+    expect(sceneLightingContract.backdrop.floorColor).toBe('#16202b');
+    expect(sceneLightingContract.backdrop.wallColor).toBe('#16212d');
 
     expect(sceneLightingContract.keyLight.role).toBe('key');
     expect(sceneLightingContract.keyLight.intensity).toBeGreaterThan(
@@ -26,6 +30,8 @@ describe('sceneLighting', () => {
     expect(sceneLightingContract.keyLight.shadow.bounds).toBeGreaterThan(5.5);
 
     expect(sceneLightingContract.fillLight.role).toBe('fill');
+    expect(sceneLightingContract.fillLight.intensity).toBeGreaterThanOrEqual(0.55);
     expect(sceneLightingContract.rimLight.role).toBe('rim');
+    expect(sceneLightingContract.rimLight.intensity).toBeGreaterThanOrEqual(0.4);
   });
 });

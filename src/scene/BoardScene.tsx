@@ -727,6 +727,8 @@ export function BoardScene({
 }
 
 function SceneBackdrop() {
+  const { backdrop } = sceneLightingContract;
+
   return (
     <>
       <mesh
@@ -735,11 +737,22 @@ function SceneBackdrop() {
         rotation={[-Math.PI / 2, 0, 0]}
       >
         <circleGeometry args={[11.5, 64]} />
-        <meshStandardMaterial color="#101720" roughness={0.94} />
+        <meshStandardMaterial
+          color={backdrop.floorColor}
+          emissive={backdrop.floorEmissive}
+          emissiveIntensity={0.28}
+          roughness={0.96}
+        />
       </mesh>
       <mesh position={[0, 4.8, -9.2]}>
         <planeGeometry args={[24, 16]} />
-        <meshBasicMaterial color="#0c1118" side={DoubleSide} />
+        <meshStandardMaterial
+          color={backdrop.wallColor}
+          emissive={backdrop.wallEmissive}
+          emissiveIntensity={0.22}
+          roughness={0.98}
+          side={DoubleSide}
+        />
       </mesh>
     </>
   );

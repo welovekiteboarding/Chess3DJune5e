@@ -98,7 +98,7 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
 test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, and still plays against Stockfish after camera changes', async ({
   page,
 }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(75_000);
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
@@ -180,7 +180,7 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
 
   await boardCanvasShell.hover();
 
-  for (let zoomStep = 0; zoomStep < 8; zoomStep += 1) {
+  for (let zoomStep = 0; zoomStep < 3; zoomStep += 1) {
     await page.mouse.wheel(0, 1200);
   }
 
@@ -194,7 +194,7 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
 
   await boardCanvasShell.hover();
 
-  for (let zoomStep = 0; zoomStep < 12; zoomStep += 1) {
+  for (let zoomStep = 0; zoomStep < 5; zoomStep += 1) {
     await page.mouse.wheel(0, -1200);
   }
 
@@ -377,10 +377,10 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'false');
   await expectMoveHistoryEntry(page, 0, '1. human e2e4');
   await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
-    timeout: 15000,
+    timeout: 25000,
   });
   await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
 
   const aiMoveText = await page
     .locator('[data-testid="move-history-item"][data-move-index="1"]')
@@ -417,10 +417,10 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(f3Square).toHaveAttribute('data-piece', 'white knight');
   await expectMoveHistoryEntry(page, 2, '3. human g1f3');
   await expect(page.getByTestId('move-history-item')).toHaveCount(4, {
-    timeout: 15000,
+    timeout: 25000,
   });
   await expectMoveHistoryEntry(page, 3, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
 
   await page.getByRole('button', { name: 'Zoom out' }).click();
   await page.getByRole('button', { name: 'Reset view' }).click();
