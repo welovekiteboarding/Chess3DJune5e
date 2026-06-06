@@ -359,7 +359,7 @@ describe('App', () => {
     expect(store.getState().latestErrorKind).toBeNull();
   });
 
-  it('auto-requests the AI move even when a stale transient input error remains in state', async () => {
+  it('clears a stale input error and auto-requests the first AI reply after a visible-board move', async () => {
     const engine = createFakeEngine();
     engine.requestBestMove.mockResolvedValue({
       difficulty: 'medium',
@@ -371,8 +371,6 @@ describe('App', () => {
       engine,
     });
 
-    store.getState().selectSquare('e2');
-    store.getState().attemptHumanMove('e4');
     store.setState({
       latestError: 'No square selected.',
       latestErrorKind: 'input',
@@ -385,9 +383,18 @@ describe('App', () => {
       />,
     );
 
+    expect(
+      screen.getByRole('alert', { name: 'Engine error' }),
+    ).toHaveTextContent('Latest error: No square selected.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
     await waitFor(() => {
       expect(engine.requestBestMove).toHaveBeenCalledTimes(1);
     });
+
+    expect(screen.getByText('1. human e2e4')).toBeInTheDocument();
 
     await waitFor(() =>
       expect(store.getState().moveHistory).toEqual([
@@ -401,6 +408,9 @@ describe('App', () => {
         },
       ]),
     );
+
+    expect(store.getState().latestError).toBeNull();
+    expect(store.getState().latestErrorKind).toBeNull();
   });
 
   it('shows engine thinking during auto-play and clears the status after the AI move resolves', async () => {
