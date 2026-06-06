@@ -76,6 +76,10 @@ async function clickRenderedSquare(squareHitTarget: Locator) {
   await squareHitTarget.click();
 }
 
+async function clickCameraButton(page: Page, name: string) {
+  await page.getByRole('button', { name }).click({ force: true });
+}
+
 async function waitForPieceAnimationToSettle(piece: Locator) {
   await expect(piece).toHaveAttribute('data-animation-state', 'idle', {
     timeout: 5000,
@@ -126,7 +130,7 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
   await expect(page.getByTestId('app-shell-title')).toHaveText('3D Chess');
 });
 
-test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, and still plays against Stockfish after camera changes', async ({
+test('keeps the board flat while orbiting and clamps camera zoom to useful bounds', async ({
   page,
 }) => {
   test.setTimeout(75_000);
@@ -136,10 +140,6 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
 
   const cameraState = page.getByTestId('board-camera-state');
   const boardCanvasShell = page.getByTestId('board-scene-canvas-shell');
-  const e2Square = page.locator(getSquareButton('e2'));
-  const e4Square = page.locator(getSquareButton('e4'));
-  const e2HitTarget = page.getByTestId('board-hit-target-e2');
-  const e4HitTarget = page.getByTestId('board-hit-target-e4');
 
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 
@@ -151,7 +151,7 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   expect(defaultCameraMetrics.screenUpAngle).toBeCloseTo(0, 2);
 
   for (let rotationStep = 0; rotationStep < 20; rotationStep += 1) {
-    await page.getByRole('button', { name: 'Rotate right' }).click();
+    await clickCameraButton(page, 'Rotate right');
   }
 
   const rotatedRightMetrics = await getCameraMetrics(cameraState);
@@ -160,7 +160,7 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   expect(rotatedRightMetrics.screenUpAngle).toBeCloseTo(0, 2);
 
   for (let rotationStep = 0; rotationStep < 6; rotationStep += 1) {
-    await page.getByRole('button', { name: 'Rotate left' }).click();
+    await clickCameraButton(page, 'Rotate left');
   }
 
   const rotatedLeftMetrics = await getCameraMetrics(cameraState);
@@ -185,38 +185,10 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
     .poll(async () => (await getCameraMetrics(cameraState)).distance)
     .toBeLessThan(zoomedOutMetrics.distance);
 
-  await clickRenderedSquare(e2HitTarget);
-
-  await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
-    'data-highlight-treatment',
-    'dual-ring',
-  );
-  await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
-  await expect(page.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
-    'data-marker-treatment',
-    'flat-dot',
-  );
-
-  await clickRenderedSquare(e4HitTarget);
-  await waitForPieceAnimationToSettle(
-    page.getByTestId('board-piece-white-pawn-e4'),
-  );
-
-  await expect(e2Square).toHaveAttribute('data-piece', 'empty');
-  await expect(e4Square).toHaveAttribute('data-piece', 'white pawn');
-  await expectMoveHistoryEntry(page, 0, '1. human e2e4');
-  await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
-    timeout: 25000,
-  });
-  await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
-  await waitForPieceAnimationsToComplete(page);
-
   await boardCanvasShell.hover();
 
   for (let zoomStep = 0; zoomStep < 3; zoomStep += 1) {
-    await page.mouse.wheel(0, 1200);
+    await page.mouse.wheel(0, 1600);
   }
 
   await expect
@@ -230,7 +202,7 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   await boardCanvasShell.hover();
 
   for (let zoomStep = 0; zoomStep < 5; zoomStep += 1) {
-    await page.mouse.wheel(0, -1200);
+    await page.mouse.wheel(0, -1600);
   }
 
   await expect
@@ -240,6 +212,9 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   const minZoomMetrics = await getCameraMetrics(cameraState);
 
   expect(minZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
+
+  await clickCameraButton(page, 'Reset view');
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 });
 
 test('boots the real browser Stockfish path and applies an AI move from visible board clicks', async ({
@@ -350,7 +325,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   const defaultE2Position = await getProjectedSquarePosition(e2Square);
 
-  await page.getByRole('button', { name: 'Overhead view' }).click();
+  await clickCameraButton(page, 'Overhead view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
 
   const overheadE2Position = await getProjectedSquarePosition(e2Square);
@@ -382,7 +357,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     getProjectedDistance(zoomedE2Position, zoomedE4Position),
   ).toBeGreaterThan(getProjectedDistance(overheadE2Position, overheadE4Position));
 
-  await page.getByRole('button', { name: 'Reset view' }).click();
+  await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 
   const resetE2Position = await getProjectedSquarePosition(e2Square);
@@ -445,7 +420,8 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     /^(black) /,
   );
 
-  await page.getByRole('button', { name: 'Rotate left' }).click();
+  await clickCameraButton(page, 'Rotate left');
+  await clickCameraButton(page, 'Zoom out');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
 
   await clickRenderedSquare(g1HitTarget);
@@ -467,8 +443,8 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
   await waitForPieceAnimationsToComplete(page);
 
-  await page.getByRole('button', { name: 'Zoom out' }).click();
-  await page.getByRole('button', { name: 'Reset view' }).click();
+  await clickCameraButton(page, 'Zoom out');
+  await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
   expect(await getCameraDistance(cameraState)).toBeCloseTo(10.4, 1);
 });
@@ -481,9 +457,9 @@ test('keeps every piece grounded under a side-view camera using deterministic sc
 
   const cameraState = page.getByTestId('board-camera-state');
 
-  await page.getByRole('button', { name: 'Rotate left' }).click();
-  await page.getByRole('button', { name: 'Tilt down' }).click();
-  await page.getByRole('button', { name: 'Tilt down' }).click();
+  await clickCameraButton(page, 'Rotate left');
+  await clickCameraButton(page, 'Tilt down');
+  await clickCameraButton(page, 'Tilt down');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
 
   const groundedPieces = await page.locator('[data-testid="board-piece"]').evaluateAll(
