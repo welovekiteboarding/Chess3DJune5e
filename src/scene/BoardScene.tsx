@@ -3,7 +3,6 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { type Camera, Matrix4, MOUSE, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,

@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
 import { createGameStore } from '../game/gameStore';
 import type { BoardSceneCanvasProps } from '../scene/BoardScene';
-import { App, handleBoardSquareSelect } from './App';
+import { App } from './App';
 
 function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
   return <div data-testid="board-scene-canvas">{children}</div>;
@@ -383,9 +383,17 @@ describe('App', () => {
       engine: createFakeEngine(),
     });
 
-    handleBoardSquareSelect(store, 'e2');
-    handleBoardSquareSelect(store, 'e4');
-    handleBoardSquareSelect(store, 'e4');
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
 
     expect(store.getState().moveHistory).toEqual([
       {
