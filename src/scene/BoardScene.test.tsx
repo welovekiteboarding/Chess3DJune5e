@@ -245,6 +245,35 @@ describe('BoardScene', () => {
     expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
   });
 
+  it('publishes deterministic camera bounds and clamps button zoom within them', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={InteractiveTestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    const cameraState = screen.getByTestId('board-camera-state');
+    const canvas = screen.getByTestId('interactive-board-scene-canvas');
+
+    expect(cameraState).toHaveAttribute('data-min-distance', '3.6');
+    expect(cameraState).toHaveAttribute('data-max-distance', '24');
+    expect(cameraState).toHaveAttribute('data-screen-up-angle', '0');
+
+    for (let zoomStep = 0; zoomStep < 20; zoomStep += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    }
+
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(3.6, 5);
+
+    for (let zoomStep = 0; zoomStep < 30; zoomStep += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    }
+
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(24, 5);
+  });
+
   it('keeps horizontal camera orbit unbounded across repeated full rotations', () => {
     render(
       <BoardScene

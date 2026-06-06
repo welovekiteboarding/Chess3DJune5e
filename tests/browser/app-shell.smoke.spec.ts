@@ -45,6 +45,33 @@ async function getCameraDistance(cameraState: Locator): Promise<number> {
   return Number(await cameraState.getAttribute('data-distance'));
 }
 
+async function getCameraMetrics(cameraState: Locator) {
+  const [
+    azimuth,
+    distance,
+    maxDistance,
+    minDistance,
+    polar,
+    screenUpAngle,
+  ] = await Promise.all([
+    cameraState.getAttribute('data-azimuth'),
+    cameraState.getAttribute('data-distance'),
+    cameraState.getAttribute('data-max-distance'),
+    cameraState.getAttribute('data-min-distance'),
+    cameraState.getAttribute('data-polar'),
+    cameraState.getAttribute('data-screen-up-angle'),
+  ]);
+
+  return {
+    azimuth: Number(azimuth),
+    distance: Number(distance),
+    maxDistance: Number(maxDistance),
+    minDistance: Number(minDistance),
+    polar: Number(polar),
+    screenUpAngle: Number(screenUpAngle),
+  };
+}
+
 async function clickRenderedSquare(squareHitTarget: Locator) {
   await squareHitTarget.click();
 }
@@ -66,6 +93,104 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
 
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('app-shell-title')).toHaveText('3D Chess');
+});
+
+test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, and still plays against Stockfish after camera changes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+
+  const cameraState = page.getByTestId('board-camera-state');
+  const boardCanvasShell = page.getByTestId('board-scene-canvas-shell');
+  const e2Square = page.locator(getSquareButton('e2'));
+  const e4Square = page.locator(getSquareButton('e4'));
+  const e2HitTarget = page.getByTestId('board-hit-target-e2');
+  const e4HitTarget = page.getByTestId('board-hit-target-e4');
+
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+
+  const defaultCameraMetrics = await getCameraMetrics(cameraState);
+
+  expect(defaultCameraMetrics.minDistance).toBeCloseTo(3.6, 2);
+  expect(defaultCameraMetrics.maxDistance).toBeCloseTo(24, 2);
+  expect(defaultCameraMetrics.maxDistance - defaultCameraMetrics.minDistance).toBeGreaterThan(20);
+  expect(defaultCameraMetrics.screenUpAngle).toBeCloseTo(0, 2);
+
+  for (let rotationStep = 0; rotationStep < 20; rotationStep += 1) {
+    await page.getByRole('button', { name: 'Rotate right' }).click();
+  }
+
+  const rotatedRightMetrics = await getCameraMetrics(cameraState);
+
+  expect(rotatedRightMetrics.azimuth).toBeGreaterThan(Math.PI * 2);
+  expect(rotatedRightMetrics.screenUpAngle).toBeCloseTo(0, 2);
+
+  for (let rotationStep = 0; rotationStep < 6; rotationStep += 1) {
+    await page.getByRole('button', { name: 'Rotate left' }).click();
+  }
+
+  const rotatedLeftMetrics = await getCameraMetrics(cameraState);
+
+  expect(rotatedLeftMetrics.azimuth).toBeLessThan(rotatedRightMetrics.azimuth);
+  expect(rotatedLeftMetrics.screenUpAngle).toBeCloseTo(0, 2);
+  expect(rotatedLeftMetrics.polar).toBeCloseTo(defaultCameraMetrics.polar, 2);
+
+  await boardCanvasShell.hover();
+  await page.mouse.wheel(0, 180);
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await expect
+    .poll(async () => (await getCameraMetrics(cameraState)).distance)
+    .toBeGreaterThan(defaultCameraMetrics.distance);
+
+  const zoomedOutMetrics = await getCameraMetrics(cameraState);
+
+  expect(zoomedOutMetrics.screenUpAngle).toBeCloseTo(0, 2);
+
+  await page.mouse.wheel(0, -260);
+  await expect
+    .poll(async () => (await getCameraMetrics(cameraState)).distance)
+    .toBeLessThan(zoomedOutMetrics.distance);
+
+  await clickRenderedSquare(e2HitTarget);
+
+  await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
+
+  await clickRenderedSquare(e4HitTarget);
+
+  await expect(e2Square).toHaveAttribute('data-piece', 'empty');
+  await expect(e4Square).toHaveAttribute('data-piece', 'white pawn');
+  await expectMoveHistoryEntry(page, 0, '1. human e2e4');
+  await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
+    timeout: 15000,
+  });
+  await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
+  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
+
+  for (let zoomStep = 0; zoomStep < 8; zoomStep += 1) {
+    await page.mouse.wheel(0, 1200);
+  }
+
+  await expect
+    .poll(async () => (await getCameraMetrics(cameraState)).distance)
+    .toBeCloseTo(defaultCameraMetrics.maxDistance, 2);
+
+  const maxZoomMetrics = await getCameraMetrics(cameraState);
+
+  expect(maxZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
+
+  for (let zoomStep = 0; zoomStep < 12; zoomStep += 1) {
+    await page.mouse.wheel(0, -1200);
+  }
+
+  await expect
+    .poll(async () => (await getCameraMetrics(cameraState)).distance)
+    .toBeCloseTo(defaultCameraMetrics.minDistance, 2);
+
+  const minZoomMetrics = await getCameraMetrics(cameraState);
+
+  expect(minZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
 });
 
 test('boots the real browser Stockfish path and applies an AI move from visible board clicks', async ({

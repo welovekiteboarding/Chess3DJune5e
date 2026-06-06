@@ -36,6 +36,9 @@ interface BoardCameraView {
 export interface BoardSceneCanvasProps extends PropsWithChildren {
   cameraView?: BoardCameraView;
   className?: string;
+  onCameraTelemetryChange?: (
+    cameraTelemetry: BoardSceneCameraTelemetry,
+  ) => void;
   onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
@@ -62,6 +65,12 @@ interface BoardSquareScreenPosition {
   visible: boolean;
   x: number;
   y: number;
+}
+
+interface BoardSceneCameraTelemetry {
+  maxDistance: number;
+  minDistance: number;
+  screenUpAngle: number;
 }
 
 type BoardSquareScreenPositions = Partial<
@@ -132,6 +141,7 @@ function DefaultBoardSceneCanvas({
   cameraView = defaultCameraView,
   children,
   className,
+  onCameraTelemetryChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: BoardSceneCanvasProps) {
@@ -145,6 +155,7 @@ function DefaultBoardSceneCanvas({
     >
       <BoardSceneCameraRig
         cameraView={cameraView}
+        onCameraTelemetryChange={onCameraTelemetryChange}
         onCameraViewChange={onCameraViewChange}
         onSquareScreenPositionsChange={onSquareScreenPositionsChange}
       />
@@ -164,6 +175,13 @@ export function BoardScene({
   const legalDestinationSet = new Set(legalDestinationSquares);
   const legalDestinationMarkers = Array.from(legalDestinationSet);
   const [cameraView, setCameraView] = useState(defaultCameraView);
+  const [cameraTelemetry, setCameraTelemetry] = useState<BoardSceneCameraTelemetry>(
+    () => ({
+      maxDistance: maxCameraDistance,
+      minDistance: minCameraDistance,
+      screenUpAngle: 0,
+    }),
+  );
   const [squareScreenPositions, setSquareScreenPositions] =
     useState<BoardSquareScreenPositions>({});
   const canvasShellRef = useRef<HTMLDivElement | null>(null);
@@ -240,6 +258,18 @@ export function BoardScene({
         <CanvasBoundary
           cameraView={cameraView}
           className="board-scene-canvas"
+          onCameraTelemetryChange={(nextCameraTelemetry) => {
+            startTransition(() => {
+              setCameraTelemetry((currentCameraTelemetry) =>
+                areCameraTelemetryEqual(
+                  currentCameraTelemetry,
+                  nextCameraTelemetry,
+                )
+                  ? currentCameraTelemetry
+                  : nextCameraTelemetry,
+              );
+            });
+          }}
           onCameraViewChange={handleCameraViewChange}
           onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
             startTransition(() => {
@@ -400,7 +430,10 @@ export function BoardScene({
           className="board-scene-camera-status"
           data-azimuth={cameraView.azimuth}
           data-distance={cameraView.distance}
+          data-max-distance={cameraTelemetry.maxDistance}
+          data-min-distance={cameraTelemetry.minDistance}
           data-polar={cameraView.polar}
+          data-screen-up-angle={cameraTelemetry.screenUpAngle}
           data-testid="board-camera-state"
           data-view-mode={cameraView.viewMode}
           role="status"
@@ -509,10 +542,14 @@ type BoardCameraAction =
 
 function BoardSceneCameraRig({
   cameraView,
+  onCameraTelemetryChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: {
   cameraView: BoardCameraView;
+  onCameraTelemetryChange?: (
+    cameraTelemetry: BoardSceneCameraTelemetry,
+  ) => void;
   onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
@@ -521,6 +558,7 @@ function BoardSceneCameraRig({
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  const lastCameraTelemetrySnapshotRef = useRef('');
   const lastSquareScreenPositionsRef = useRef('');
   const lastCameraViewSnapshotRef = useRef(getCameraViewSnapshot(cameraView));
   const lastPublishedCameraViewRef = useRef(cameraView);
@@ -555,13 +593,25 @@ function BoardSceneCameraRig({
       onSquareScreenPositionsChange,
       size,
     });
-  }, [camera, cameraView, onSquareScreenPositionsChange, size]);
+    publishCameraTelemetry({
+      camera,
+      lastCameraTelemetrySnapshotRef,
+      onCameraTelemetryChange,
+      size,
+    });
+  }, [camera, cameraView, onCameraTelemetryChange, onSquareScreenPositionsChange, size]);
 
   useFrame(() => {
     publishProjectedSquarePositions({
       camera,
       lastSquareScreenPositionsRef,
       onSquareScreenPositionsChange,
+      size,
+    });
+    publishCameraTelemetry({
+      camera,
+      lastCameraTelemetrySnapshotRef,
+      onCameraTelemetryChange,
       size,
     });
   });
@@ -874,6 +924,17 @@ function areCameraViewsEqual(
   return getCameraViewSnapshot(currentCameraView) === getCameraViewSnapshot(nextCameraView);
 }
 
+function areCameraTelemetryEqual(
+  currentCameraTelemetry: BoardSceneCameraTelemetry,
+  nextCameraTelemetry: BoardSceneCameraTelemetry,
+) {
+  return (
+    currentCameraTelemetry.maxDistance === nextCameraTelemetry.maxDistance &&
+    currentCameraTelemetry.minDistance === nextCameraTelemetry.minDistance &&
+    currentCameraTelemetry.screenUpAngle === nextCameraTelemetry.screenUpAngle
+  );
+}
+
 function getCameraViewSnapshot(cameraView: BoardCameraView): string {
   return `${cameraView.viewMode}:${roundToTwoDecimals(cameraView.azimuth)}:${roundToTwoDecimals(cameraView.distance)}:${roundToTwoDecimals(cameraView.polar)}`;
 }
@@ -1032,6 +1093,68 @@ function publishProjectedSquarePositions({
 
   lastSquareScreenPositionsRef.current = projectedSquarePositionsSnapshot;
   onSquareScreenPositionsChange(projectedSquarePositions);
+}
+
+function publishCameraTelemetry({
+  camera,
+  lastCameraTelemetrySnapshotRef,
+  onCameraTelemetryChange,
+  size,
+}: {
+  camera: Camera;
+  lastCameraTelemetrySnapshotRef: { current: string };
+  onCameraTelemetryChange?: (
+    cameraTelemetry: BoardSceneCameraTelemetry,
+  ) => void;
+  size: { height: number; width: number };
+}) {
+  if (!onCameraTelemetryChange) {
+    return;
+  }
+
+  const cameraTelemetry = getCameraTelemetry(camera, size);
+  const nextCameraTelemetrySnapshot = [
+    cameraTelemetry.maxDistance,
+    cameraTelemetry.minDistance,
+    cameraTelemetry.screenUpAngle,
+  ].join(':');
+
+  if (nextCameraTelemetrySnapshot === lastCameraTelemetrySnapshotRef.current) {
+    return;
+  }
+
+  lastCameraTelemetrySnapshotRef.current = nextCameraTelemetrySnapshot;
+  onCameraTelemetryChange(cameraTelemetry);
+}
+
+function getCameraTelemetry(
+  camera: Camera,
+  size: { height: number; width: number },
+): BoardSceneCameraTelemetry {
+  const targetScreenPosition = projectBoardPositionToScreen({
+    camera,
+    size,
+    x: cameraTarget.x,
+    y: cameraTarget.y,
+    z: cameraTarget.z,
+  });
+  const targetUpScreenPosition = projectBoardPositionToScreen({
+    camera,
+    size,
+    x: cameraTarget.x,
+    y: cameraTarget.y + 1,
+    z: cameraTarget.z,
+  });
+  const screenUpDeltaX = targetUpScreenPosition.x - targetScreenPosition.x;
+  const screenUpDeltaY = targetUpScreenPosition.y - targetScreenPosition.y;
+
+  return {
+    maxDistance: maxCameraDistance,
+    minDistance: minCameraDistance,
+    screenUpAngle: roundToTwoDecimals(
+      (Math.atan2(screenUpDeltaX, -screenUpDeltaY) * 180) / Math.PI,
+    ),
+  };
 }
 
 function getProjectedSquarePositions(
