@@ -132,6 +132,35 @@ function getPieceAtSquare(page: Page, square: string, color: 'white' | 'black') 
   );
 }
 
+async function expectResolvedPieceIdentity(
+  page: Page,
+  square: string,
+  color: 'white' | 'black',
+) {
+  const piece = getPieceAtSquare(page, square, color);
+
+  await expect(piece).toHaveCount(1);
+  await expect(piece).toHaveAttribute(
+    'data-render-id',
+    new RegExp(`^${color}-(bishop|king|knight|pawn|queen|rook)-${square}$`),
+  );
+
+  const renderId = await piece.getAttribute('data-render-id');
+
+  expect(renderId).not.toBeNull();
+
+  const pieceIdentity = page.getByTestId(`board-piece-${renderId!}`);
+
+  await expect(pieceIdentity).toHaveAttribute('data-square', square);
+  await expect(pieceIdentity).toHaveAttribute('data-animation-state', 'idle');
+
+  return {
+    piece,
+    pieceIdentity,
+    renderId: renderId!,
+  };
+}
+
 async function waitForPieceAnimationsToComplete(
   page: Page,
   { expectMotion = false }: { expectMotion?: boolean } = {},
@@ -263,7 +292,7 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 });
 
-test('boots the real browser Stockfish path and applies an AI move from visible board clicks', async ({
+test('boots the real browser Stockfish path and keeps move surfaces stable at default and custom camera angles', async ({
   page,
 }) => {
   test.setTimeout(150_000);
@@ -406,12 +435,14 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await clickRenderedSquare(page, 'e2');
 
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveCount(1);
   await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
     'data-highlight-contrast',
     'light-dark-ready',
   );
   await expect(e3Square).toHaveAttribute('data-legal-destination', 'true');
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
+  await expect(page.getByTestId('legal-destination-marker-e3')).toHaveCount(1);
   await expect(page.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
     'data-marker-treatment',
     'flat-dot',
@@ -422,6 +453,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     page.getByTestId('board-piece-white-pawn-e4'),
     { expectMotion: true },
   );
+  await expectResolvedPieceIdentity(page, 'e4', 'white');
 
   await expect(e2Square).toHaveAttribute('data-piece', 'empty');
   await expect(getPieceAtSquare(page, 'e4', 'white')).toHaveCount(1);
@@ -456,7 +488,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     'data-piece',
     'empty',
   );
-  await expect(getPieceAtSquare(page, to, 'black')).toHaveCount(1);
+  await expectResolvedPieceIdentity(page, to, 'black');
 
   await clickCameraButton(page, 'Rotate left');
   await clickCameraButton(page, 'Zoom out');
@@ -464,13 +496,19 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   await clickRenderedSquare(page, 'g1');
   await expect(g1Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('selected-square-highlight-g1')).toHaveCount(1);
   await expect(f3Square).toHaveAttribute('data-legal-destination', 'true');
+  await expect(page.getByTestId('legal-destination-marker-f3')).toHaveAttribute(
+    'data-marker-treatment',
+    'flat-dot',
+  );
 
   await clickRenderedSquare(page, 'f3');
   await waitForPieceAnimationToSettle(
     page.getByTestId('board-piece-white-knight-f3'),
     { expectMotion: true },
   );
+  await expectResolvedPieceIdentity(page, 'f3', 'white');
 
   await expect(g1Square).toHaveAttribute('data-piece', 'empty');
   await expect(getPieceAtSquare(page, 'f3', 'white')).toHaveCount(1);
@@ -498,6 +536,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   await waitForPieceAtSquareToSettle(page, secondAiDestination, 'black');
   await waitForPieceAnimationsToComplete(page);
+  await expectResolvedPieceIdentity(page, secondAiDestination, 'black');
 
   await clickCameraButton(page, 'Zoom out');
   await clickCameraButton(page, 'Reset view');
@@ -621,5 +660,47 @@ test('keeps the board visible and scrolls long move history inside the controls 
   expect(layoutMetrics.moveCount).toBe(80);
   expect(layoutMetrics.historyScrollHeight).toBeGreaterThan(
     layoutMetrics.historyClientHeight,
+  );
+
+  const moveHistoryScroll = page.getByTestId('move-history-scroll');
+
+  await moveHistoryScroll.hover();
+
+  const scrollStateBefore = await page.evaluate(() => ({
+    historyScrollTop: (
+      document.querySelector('[data-testid="move-history-scroll"]') as HTMLElement | null
+    )?.scrollTop ?? -1,
+    pageScrollTop: document.scrollingElement?.scrollTop ?? -1,
+  }));
+
+  await page.mouse.wheel(0, 1600);
+
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          (
+            document.querySelector(
+              '[data-testid="move-history-scroll"]',
+            ) as HTMLElement | null
+          )?.scrollTop ?? -1,
+      ),
+    )
+    .toBeGreaterThan(scrollStateBefore.historyScrollTop);
+  await expect
+    .poll(async () => page.evaluate(() => document.scrollingElement?.scrollTop ?? -1))
+    .toBe(0);
+
+  const scrollStateAfter = await page.evaluate(() => ({
+    historyScrollTop: (
+      document.querySelector('[data-testid="move-history-scroll"]') as HTMLElement | null
+    )?.scrollTop ?? -1,
+    pageScrollTop: document.scrollingElement?.scrollTop ?? -1,
+  }));
+
+  expect(scrollStateBefore.pageScrollTop).toBe(0);
+  expect(scrollStateAfter.pageScrollTop).toBe(0);
+  expect(scrollStateAfter.historyScrollTop).toBeGreaterThan(
+    scrollStateBefore.historyScrollTop,
   );
 });
