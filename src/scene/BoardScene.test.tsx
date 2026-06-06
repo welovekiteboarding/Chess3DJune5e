@@ -696,6 +696,64 @@ describe('BoardScene', () => {
     }
   });
 
+  it('cancels in-flight piece transitions when the scene unmounts mid-move', () => {
+    vi.useFakeTimers();
+
+    const cancelAnimationFrameSpy = vi.spyOn(globalThis, 'cancelAnimationFrame');
+
+    try {
+      const { rerender, unmount } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      unmount();
+
+      act(() => {
+        vi.runOnlyPendingTimers();
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(cancelAnimationFrameSpy).toHaveBeenCalled();
+    } finally {
+      cancelAnimationFrameSpy.mockRestore();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('skips piece move transitions when reduced motion is enabled', async () => {
     const originalMatchMedia = window.matchMedia;
 

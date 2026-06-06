@@ -253,6 +253,7 @@ export function BoardScene({
     useState<Record<string, PiecePosition3D>>({});
   const canvasShellRef = useRef<HTMLDivElement | null>(null);
   const interactionHitTargetOverlayRef = useRef<HTMLDivElement | null>(null);
+  const isMountedRef = useRef(true);
   const activePieceAnimationsRef = useRef<Record<string, ActivePieceAnimation>>({});
   const animationFrameRef = useRef<number | null>(null);
   const previousPiecePlacementsRef = useRef(piecePlacements);
@@ -284,7 +285,10 @@ export function BoardScene({
 
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
+      activePieceAnimationsRef.current = {};
       cancelScheduledAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     };
   }, []);
 
@@ -314,6 +318,7 @@ export function BoardScene({
     if (!movedPieceAnimation) {
       syncPieceAnimationFrame({
         activePieceAnimationsRef,
+        isMountedRef,
         nowMs: getAnimationTimestamp(),
         setActivePieceAnimationCount,
         setPieceAnimationMetadataByRenderId,
@@ -333,6 +338,7 @@ export function BoardScene({
 
     syncPieceAnimationFrame({
       activePieceAnimationsRef,
+      isMountedRef,
       nowMs: getAnimationTimestamp(),
       setActivePieceAnimationCount,
       setPieceAnimationMetadataByRenderId,
@@ -341,6 +347,7 @@ export function BoardScene({
     schedulePieceAnimationFrame({
       activePieceAnimationsRef,
       animationFrameRef,
+      isMountedRef,
       setActivePieceAnimationCount,
       setPieceAnimationMetadataByRenderId,
       setPieceAnimationPositionsByRenderId,
@@ -1610,12 +1617,14 @@ function cancelScheduledAnimationFrame(animationFrameId: number | null) {
 function schedulePieceAnimationFrame({
   activePieceAnimationsRef,
   animationFrameRef,
+  isMountedRef,
   setActivePieceAnimationCount,
   setPieceAnimationMetadataByRenderId,
   setPieceAnimationPositionsByRenderId,
 }: {
   activePieceAnimationsRef: { current: Record<string, ActivePieceAnimation> };
   animationFrameRef: { current: number | null };
+  isMountedRef: { current: boolean };
   setActivePieceAnimationCount: (count: number) => void;
   setPieceAnimationMetadataByRenderId: (
     metadataByRenderId: Record<string, PieceAnimationMetadata>,
@@ -1624,15 +1633,21 @@ function schedulePieceAnimationFrame({
     positionsByRenderId: Record<string, PiecePosition3D>,
   ) => void;
 }) {
-  if (animationFrameRef.current !== null) {
+  if (!isMountedRef.current || animationFrameRef.current !== null) {
     return;
   }
 
   const tick = () => {
     animationFrameRef.current = null;
 
+    if (!isMountedRef.current) {
+      activePieceAnimationsRef.current = {};
+      return;
+    }
+
     const activePieceAnimationCount = syncPieceAnimationFrame({
       activePieceAnimationsRef,
+      isMountedRef,
       nowMs: getAnimationTimestamp(),
       setActivePieceAnimationCount,
       setPieceAnimationMetadataByRenderId,
@@ -1643,6 +1658,7 @@ function schedulePieceAnimationFrame({
       schedulePieceAnimationFrame({
         activePieceAnimationsRef,
         animationFrameRef,
+        isMountedRef,
         setActivePieceAnimationCount,
         setPieceAnimationMetadataByRenderId,
         setPieceAnimationPositionsByRenderId,
@@ -1655,12 +1671,14 @@ function schedulePieceAnimationFrame({
 
 function syncPieceAnimationFrame({
   activePieceAnimationsRef,
+  isMountedRef,
   nowMs,
   setActivePieceAnimationCount,
   setPieceAnimationMetadataByRenderId,
   setPieceAnimationPositionsByRenderId,
 }: {
   activePieceAnimationsRef: { current: Record<string, ActivePieceAnimation> };
+  isMountedRef: { current: boolean };
   nowMs: number;
   setActivePieceAnimationCount: (count: number) => void;
   setPieceAnimationMetadataByRenderId: (
@@ -1676,6 +1694,11 @@ function syncPieceAnimationFrame({
     PieceAnimationMetadata
   > = {};
   const nextPieceAnimationPositionsByRenderId: Record<string, PiecePosition3D> = {};
+
+  if (!isMountedRef.current) {
+    activePieceAnimationsRef.current = {};
+    return 0;
+  }
 
   Object.entries(activePieceAnimationsRef.current).forEach(
     ([renderId, pieceAnimation]) => {
