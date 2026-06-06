@@ -235,6 +235,43 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
 });
 
+test('keeps every piece grounded under a side-view camera using deterministic scene data', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+
+  const cameraState = page.getByTestId('board-camera-state');
+
+  await page.getByRole('button', { name: 'Rotate left' }).click();
+  await page.getByRole('button', { name: 'Tilt down' }).click();
+  await page.getByRole('button', { name: 'Tilt down' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+
+  const groundedPieces = await page.locator('[data-testid="board-piece"]').evaluateAll(
+    (nodes) =>
+      nodes.map((node) => ({
+        boardSurfaceY: node.getAttribute('data-board-surface-y'),
+        groundingConvention: node.getAttribute('data-grounding-convention'),
+        localBaseY: node.getAttribute('data-local-base-y'),
+        piece: node.getAttribute('data-piece'),
+        placementY: node.getAttribute('data-placement-y'),
+      })),
+  );
+
+  expect(groundedPieces).toHaveLength(32);
+  expect(new Set(groundedPieces.map((piece) => piece.piece))).toEqual(
+    new Set(['bishop', 'king', 'knight', 'pawn', 'queen', 'rook']),
+  );
+
+  groundedPieces.forEach((piece) => {
+    expect(piece.groundingConvention).toBe('local-origin-at-piece-base');
+    expect(piece.localBaseY).toBe('0');
+    expect(piece.boardSurfaceY).toBe('0.09');
+    expect(piece.placementY).toBe('0.09');
+  });
+});
+
 test('keeps the board visible and scrolls long move history inside the controls panel', async ({
   page,
 }) => {

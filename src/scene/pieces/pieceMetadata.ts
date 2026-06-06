@@ -1,5 +1,8 @@
 import type { ChessPiece, ChessPiecePlacement } from '../../chess/chessTypes';
 
+export const pieceBaseContactLocalY = 0;
+export const pieceGroundingConvention = 'local-origin-at-piece-base';
+
 export const pieceMarkerByType = {
   bishop: 'spire',
   king: 'cross-crown',

@@ -311,6 +311,55 @@ describe('BoardScene', () => {
     );
   });
 
+  it('publishes a consistent grounded placement convention for every piece type', () => {
+    const piecePlacements: ChessPiecePlacement[] = [
+      { renderId: 'white-king-e1', square: 'e1', piece: 'king', color: 'white' },
+      {
+        renderId: 'white-queen-d1',
+        square: 'd1',
+        piece: 'queen',
+        color: 'white',
+      },
+      { renderId: 'white-rook-a1', square: 'a1', piece: 'rook', color: 'white' },
+      {
+        renderId: 'white-bishop-c1',
+        square: 'c1',
+        piece: 'bishop',
+        color: 'white',
+      },
+      {
+        renderId: 'white-knight-b1',
+        square: 'b1',
+        piece: 'knight',
+        color: 'white',
+      },
+      { renderId: 'white-pawn-e2', square: 'e2', piece: 'pawn', color: 'white' },
+    ];
+
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        piecePlacements={piecePlacements}
+        selectedSquare={null}
+      />,
+    );
+
+    const renderedPieces = screen.getAllByTestId('board-piece');
+
+    expect(renderedPieces).toHaveLength(6);
+
+    renderedPieces.forEach((piece) => {
+      expect(piece).toHaveAttribute(
+        'data-grounding-convention',
+        'local-origin-at-piece-base',
+      );
+      expect(piece).toHaveAttribute('data-local-base-y', '0');
+      expect(piece).toHaveAttribute('data-board-surface-y', '0.09');
+      expect(piece).toHaveAttribute('data-placement-y', '0.09');
+    });
+  });
+
   it('removes structural legal-destination markers when no legal squares are provided', () => {
     const { rerender } = render(
       <BoardScene

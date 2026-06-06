@@ -1,2 +1,7 @@
 export { ChessPieceMesh } from './ChessPieceMesh';
-export { getPieceAccessibleLabel, pieceMarkerByType } from './pieceMetadata';
+export {
+  getPieceAccessibleLabel,
+  pieceBaseContactLocalY,
+  pieceGroundingConvention,
+  pieceMarkerByType,
+} from './pieceMetadata';
