@@ -315,6 +315,10 @@ describe('GamePanel', () => {
     expect(screen.getByTestId('game-panel-engine')).toBeInTheDocument();
     expect(historySection).toHaveClass('game-panel__history');
     expect(historyScroll).toHaveClass('game-panel__history-scroll');
+    expect(
+      screen.getByRole('region', { name: 'Move history entries' }),
+    ).toBe(historyScroll);
+    expect(historyScroll).toHaveAttribute('tabindex', '0');
     expect(moveHistoryList).toHaveClass('game-panel__history-list');
     expect(screen.getAllByRole('listitem')).toHaveLength(80);
     expect(screen.getByRole('button', { name: 'New game' })).toBeVisible();

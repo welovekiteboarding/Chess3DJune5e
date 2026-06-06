@@ -161,6 +161,18 @@ async function expectResolvedPieceIdentity(
   };
 }
 
+async function expectResolvedPieceIdentities(
+  page: Page,
+  pieces: ReadonlyArray<{
+    color: 'white' | 'black';
+    square: string;
+  }>,
+) {
+  for (const piece of pieces) {
+    await expectResolvedPieceIdentity(page, piece.square, piece.color);
+  }
+}
+
 async function waitForPieceAnimationsToComplete(
   page: Page,
   { expectMotion = false }: { expectMotion?: boolean } = {},
@@ -336,6 +348,20 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     'data-shadow-style',
     'soft-readable',
   );
+  await expectResolvedPieceIdentities(page, [
+    { color: 'white', square: 'a1' },
+    { color: 'white', square: 'c1' },
+    { color: 'white', square: 'e1' },
+    { color: 'white', square: 'g1' },
+    { color: 'white', square: 'e2' },
+    { color: 'white', square: 'd1' },
+    { color: 'black', square: 'a8' },
+    { color: 'black', square: 'c8' },
+    { color: 'black', square: 'e8' },
+    { color: 'black', square: 'g8' },
+    { color: 'black', square: 'e7' },
+    { color: 'black', square: 'd8' },
+  ]);
   await expect(e2Square).toHaveAttribute('data-piece', 'white pawn');
   await expect(e4Square).toHaveAttribute('data-piece', 'empty');
   await expect(page.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
@@ -425,6 +451,9 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expect
+    .poll(async () => getProjectedSquarePosition(e2Square))
+    .toEqual(defaultE2Position);
 
   const resetE2Position = await getProjectedSquarePosition(e2Square);
   const resetE4Position = await getProjectedSquarePosition(e4Square);
@@ -587,7 +616,10 @@ test('keeps the board visible and scrolls long move history inside the controls 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/?e2e-fixture=1');
   await expect(page.getByTestId('move-history-section')).toBeVisible();
-  await expect(page.getByTestId('move-history-scroll')).toBeVisible();
+  const moveHistoryScroll = page.getByRole('region', {
+    name: 'Move history entries',
+  });
+  await expect(moveHistoryScroll).toBeVisible();
   await page.waitForFunction(() =>
     Boolean(
       (
@@ -661,8 +693,6 @@ test('keeps the board visible and scrolls long move history inside the controls 
   expect(layoutMetrics.historyScrollHeight).toBeGreaterThan(
     layoutMetrics.historyClientHeight,
   );
-
-  const moveHistoryScroll = page.getByTestId('move-history-scroll');
 
   await moveHistoryScroll.hover();
 
