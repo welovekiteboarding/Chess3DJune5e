@@ -157,8 +157,11 @@ export function GamePanel({
           </span>
         </div>
         <div
+          aria-label="Move history entries"
           className="game-panel__history-scroll"
           data-testid="move-history-scroll"
+          role="region"
+          tabIndex={0}
         >
           {moveHistory.length > 0 ? (
             <ol className="game-panel__history-list" data-testid="move-history-list">
