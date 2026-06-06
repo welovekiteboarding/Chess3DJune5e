@@ -4,6 +4,7 @@ import { type Camera, Matrix4, MOUSE, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentType,
@@ -458,44 +459,28 @@ function BoardSceneCameraRig({
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const lastSquareScreenPositionsRef = useRef('');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
 
     setCameraPosition(camera, cameraX, cameraY, cameraZ);
     camera.lookAt(0, 0, 0);
     controlsRef.current?.target.set(0, 0, 0);
     controlsRef.current?.update();
-  }, [camera, cameraView]);
+    publishProjectedSquarePositions({
+      camera,
+      lastSquareScreenPositionsRef,
+      onSquareScreenPositionsChange,
+      size,
+    });
+  }, [camera, cameraView, onSquareScreenPositionsChange, size]);
 
   useFrame(() => {
-    if (!onSquareScreenPositionsChange) {
-      return;
-    }
-
-    const projectedSquarePositions: BoardSquareScreenPositions = {};
-    const projectedSquarePositionsSnapshot = boardSquares
-      .map((boardSquare) => {
-        const [x, z] = getSquarePosition(boardSquare);
-        const projectedSquarePosition = projectBoardPositionToScreen({
-          camera,
-          size,
-          x,
-          y: boardSquareSurfaceY,
-          z,
-        });
-
-        projectedSquarePositions[boardSquare.square] = projectedSquarePosition;
-
-        return `${boardSquare.square}:${projectedSquarePosition.x},${projectedSquarePosition.y},${Number(projectedSquarePosition.visible)}`;
-      })
-      .join('|');
-
-    if (projectedSquarePositionsSnapshot === lastSquareScreenPositionsRef.current) {
-      return;
-    }
-
-    lastSquareScreenPositionsRef.current = projectedSquarePositionsSnapshot;
-    onSquareScreenPositionsChange(projectedSquarePositions);
+    publishProjectedSquarePositions({
+      camera,
+      lastSquareScreenPositionsRef,
+      onSquareScreenPositionsChange,
+      size,
+    });
   });
 
   return (
@@ -730,6 +715,64 @@ function getInteractionHitTargetStyle(
     left: `${squareScreenPosition.x}px`,
     top: `${squareScreenPosition.y}px`,
     width: `${targetSize}px`,
+  };
+}
+
+function publishProjectedSquarePositions({
+  camera,
+  lastSquareScreenPositionsRef,
+  onSquareScreenPositionsChange,
+  size,
+}: {
+  camera: Camera;
+  lastSquareScreenPositionsRef: { current: string };
+  onSquareScreenPositionsChange?: (
+    squareScreenPositions: BoardSquareScreenPositions,
+  ) => void;
+  size: { height: number; width: number };
+}) {
+  if (!onSquareScreenPositionsChange) {
+    return;
+  }
+
+  const {
+    projectedSquarePositions,
+    projectedSquarePositionsSnapshot,
+  } = getProjectedSquarePositions(camera, size);
+
+  if (projectedSquarePositionsSnapshot === lastSquareScreenPositionsRef.current) {
+    return;
+  }
+
+  lastSquareScreenPositionsRef.current = projectedSquarePositionsSnapshot;
+  onSquareScreenPositionsChange(projectedSquarePositions);
+}
+
+function getProjectedSquarePositions(
+  camera: Camera,
+  size: { height: number; width: number },
+) {
+  const projectedSquarePositions: BoardSquareScreenPositions = {};
+  const projectedSquarePositionsSnapshot = boardSquares
+    .map((boardSquare) => {
+      const [x, z] = getSquarePosition(boardSquare);
+      const projectedSquarePosition = projectBoardPositionToScreen({
+        camera,
+        size,
+        x,
+        y: boardSquareSurfaceY,
+        z,
+      });
+
+      projectedSquarePositions[boardSquare.square] = projectedSquarePosition;
+
+      return `${boardSquare.square}:${projectedSquarePosition.x},${projectedSquarePosition.y},${Number(projectedSquarePosition.visible)}`;
+    })
+    .join('|');
+
+  return {
+    projectedSquarePositions,
+    projectedSquarePositionsSnapshot,
   };
 }
 
