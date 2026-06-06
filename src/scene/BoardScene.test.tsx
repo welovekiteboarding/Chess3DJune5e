@@ -1,4 +1,14 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import { flushSync } from 'react-dom';
+import { createRoot, type Root } from 'react-dom/client';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 import {
@@ -8,17 +18,71 @@ import {
 } from '../chess/chessRules';
 import { BoardScene, type BoardSceneCanvasProps } from './BoardScene';
 
-function TestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
+const expectedSceneTestWarnings = [
+  'THREE.WARNING: Multiple instances of Three.js being imported.',
+  'The tag <',
+  'is unrecognized in this browser.',
+  'is using incorrect casing.',
+  'non-boolean attribute `transparent`',
+  'React does not recognize the `',
+] as const;
+
+function isExpectedSceneTestWarning(message: string) {
+  return expectedSceneTestWarnings.some((warningFragment) =>
+    message.includes(warningFragment),
+  );
+}
+
+function formatConsoleMessage(messageParts: unknown[]) {
+  return messageParts
+    .map((messagePart) =>
+      typeof messagePart === 'string'
+        ? messagePart
+        : messagePart instanceof Error
+          ? messagePart.message
+          : String(messagePart),
+    )
+    .join(' ');
+}
+
+function suppressExpectedSceneWarnings(
+  consoleMethod: 'error' | 'warn',
+) {
+  const originalConsoleMethod = console[consoleMethod];
+
+  return vi
+    .spyOn(console, consoleMethod)
+    .mockImplementation((...messageParts: Parameters<typeof originalConsoleMethod>) => {
+      const message = formatConsoleMessage(messageParts);
+
+      if (isExpectedSceneTestWarning(message)) {
+        return;
+      }
+
+      originalConsoleMethod(...messageParts);
+    });
+}
+
+beforeEach(() => {
+  suppressExpectedSceneWarnings('error');
+  suppressExpectedSceneWarnings('warn');
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  cleanup();
+});
+
+function TestCanvasBoundary({ className }: BoardSceneCanvasProps) {
   return (
-    <div className={className} data-testid="board-scene-canvas">
-      {children}
-    </div>
+    <div className={className} data-testid="board-scene-canvas" />
   );
 }
 
 function InteractiveTestCanvasBoundary({
   cameraView,
-  children,
   className,
   onCameraViewChange,
 }: BoardSceneCanvasProps) {
@@ -44,6 +108,13 @@ function InteractiveTestCanvasBoundary({
       >
         Simulate orbit update
       </button>
+    </div>
+  );
+}
+
+function SceneTestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
+  return (
+    <div className={className} data-testid="board-scene-canvas">
       {children}
     </div>
   );
@@ -300,7 +371,7 @@ describe('BoardScene', () => {
   it('does not tilt the board group to fake the camera angle', () => {
     const { container } = render(
       <BoardScene
-        CanvasBoundary={TestCanvasBoundary}
+        CanvasBoundary={SceneTestCanvasBoundary}
         legalDestinationSquares={[]}
         selectedSquare={null}
       />,
@@ -458,6 +529,641 @@ describe('BoardScene', () => {
       expect(piece).toHaveAttribute('data-board-surface-y', '0.09');
       expect(piece).toHaveAttribute('data-placement-y', '0.09');
     });
+  });
+
+  it('animates a normal piece move while keeping logical square state authoritative', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e2')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-e4')).toHaveAttribute(
+        'data-piece',
+        'white pawn',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-from-square',
+        'e2',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-to-square',
+        'e4',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('animates the moving piece during a capture while removing the captured piece immediately', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-d5',
+              square: 'd5',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-d5',
+              square: 'd5',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e4')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-d5')).toHaveAttribute(
+        'data-piece',
+        'white pawn',
+      );
+      expect(screen.queryByTestId('board-piece-black-pawn-d5')).not.toBeInTheDocument();
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-from-square',
+        'e4',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-to-square',
+        'd5',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('animates both king and rook during castling moves', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-king-e1',
+              square: 'e1',
+              piece: 'king',
+              color: 'white',
+            },
+            {
+              renderId: 'white-rook-h1',
+              square: 'h1',
+              piece: 'rook',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-king-g1',
+              square: 'g1',
+              piece: 'king',
+              color: 'white',
+            },
+            {
+              renderId: 'white-rook-f1',
+              square: 'f1',
+              piece: 'rook',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e1')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-h1')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-g1')).toHaveAttribute(
+        'data-piece',
+        'white king',
+      );
+      expect(screen.getByTestId('board-square-f1')).toHaveAttribute(
+        'data-piece',
+        'white rook',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-from-square',
+        'e1',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-to-square',
+        'g1',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-from-square',
+        'h1',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-to-square',
+        'f1',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '2',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('publishes running move-transition metadata in the committed move render', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | null = createRoot(container);
+
+    try {
+      flushSync(() => {
+        root?.render(
+          <BoardScene
+            CanvasBoundary={TestCanvasBoundary}
+            legalDestinationSquares={[]}
+            piecePlacements={[
+              {
+                renderId: 'white-pawn-e2',
+                square: 'e2',
+                piece: 'pawn',
+                color: 'white',
+              },
+            ]}
+            selectedSquare={null}
+          />,
+        );
+      });
+
+      flushSync(() => {
+        root?.render(
+          <BoardScene
+            CanvasBoundary={TestCanvasBoundary}
+            legalDestinationSquares={[]}
+            piecePlacements={[
+              {
+                renderId: 'white-pawn-e4',
+                square: 'e4',
+                piece: 'pawn',
+                color: 'white',
+              },
+            ]}
+            selectedSquare={null}
+          />,
+        );
+      });
+
+      expect(
+        screen.getByTestId('board-piece-white-pawn-e4'),
+      ).toHaveAttribute('data-animation-state', 'running');
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+    } finally {
+      root?.unmount();
+      root = null;
+      container.remove();
+    }
+  });
+
+  it('tracks overlapping normal-move transitions for consecutive human and AI turns', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-e7',
+              square: 'e7',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-e7',
+              square: 'e7',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(120);
+      });
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-e5',
+              square: 'e5',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e2')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-e4')).toHaveAttribute(
+        'data-piece',
+        'white pawn',
+      );
+      expect(screen.getByTestId('board-square-e7')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-e5')).toHaveAttribute(
+        'data-piece',
+        'black pawn',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '2',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-from-square',
+        'e7',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-to-square',
+        'e5',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-black-pawn-e5')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels in-flight piece transitions when the scene unmounts mid-move', () => {
+    vi.useFakeTimers();
+
+    const cancelAnimationFrameSpy = vi.spyOn(globalThis, 'cancelAnimationFrame');
+
+    try {
+      const { rerender, unmount } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      unmount();
+
+      act(() => {
+        vi.runOnlyPendingTimers();
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(cancelAnimationFrameSpy).toHaveBeenCalled();
+    } finally {
+      cancelAnimationFrameSpy.mockRestore();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('skips piece move transitions when reduced motion is enabled', async () => {
+    const originalMatchMedia = window.matchMedia;
+
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    })) as typeof window.matchMedia;
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+          'data-prefers-reduced-motion',
+          'true',
+        ),
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-animation-duration-ms',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-from-square',
+        'e4',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-to-square',
+        'e4',
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   it('removes structural legal-destination markers when no legal squares are provided', () => {

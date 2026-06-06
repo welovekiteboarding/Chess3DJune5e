@@ -3,7 +3,6 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { DoubleSide, type Camera, MOUSE, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
-  startTransition,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -81,6 +80,25 @@ interface BoardSceneCameraTelemetry {
   screenUpAngle: number;
 }
 
+type PieceAnimationState = 'idle' | 'running';
+type PiecePosition3D = readonly [number, number, number];
+
+interface ActivePieceAnimation {
+  durationMs: number;
+  fromPosition: PiecePosition3D;
+  fromSquare: ChessSquare;
+  startedAtMs: number;
+  toPosition: PiecePosition3D;
+  toSquare: ChessSquare;
+}
+
+interface PieceAnimationMetadata {
+  durationMs: number;
+  fromSquare: ChessSquare;
+  state: PieceAnimationState;
+  toSquare: ChessSquare;
+}
+
 type LegalDestinationMarkerVariant = 'dot' | 'perimeter';
 
 type BoardSquareScreenPositions = Partial<
@@ -88,10 +106,12 @@ type BoardSquareScreenPositions = Partial<
 >;
 
 const boardSquares = createBoardSquares();
+const emptyPiecePlacements: readonly ChessPiecePlacement[] = [];
 const squareSize = boardGeometry.squareSize;
 const boardSquareHeight = boardGeometry.squareHeight;
 const boardHalfSpan = boardGeometry.boardHalfSpan;
 const boardSquareSurfaceY = boardGeometry.squareSurfaceY;
+const pieceMoveAnimationDurationMs = 260;
 const minCameraDistance = 3.6;
 const maxCameraDistance = 24;
 const minCameraPolar = 0.1;
@@ -169,6 +189,9 @@ const interactionHitTargetStyle = {
   padding: 0,
   margin: 0,
 } as const;
+const interactionHitTargetMinSizePx = 18;
+const interactionHitTargetMaxSizePx = 72;
+const interactionHitTargetViewportMarginPx = interactionHitTargetMaxSizePx / 2;
 const cameraTarget = new Vector3(0, 0, 0);
 
 function DefaultBoardSceneCanvas({
@@ -202,7 +225,7 @@ function DefaultBoardSceneCanvas({
 export function BoardScene({
   selectedSquare,
   legalDestinationSquares,
-  piecePlacements = [],
+  piecePlacements = emptyPiecePlacements,
   onSquareSelect,
   CanvasBoundary = DefaultBoardSceneCanvas,
   className,
@@ -225,8 +248,27 @@ export function BoardScene({
   );
   const [squareScreenPositions, setSquareScreenPositions] =
     useState<BoardSquareScreenPositions>({});
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [activePieceAnimationCount, setActivePieceAnimationCount] = useState(0);
+  const [pieceAnimationMetadataByRenderId, setPieceAnimationMetadataByRenderId] =
+    useState<Record<string, PieceAnimationMetadata>>({});
+  const [pieceAnimationPositionsByRenderId, setPieceAnimationPositionsByRenderId] =
+    useState<Record<string, PiecePosition3D>>({});
   const canvasShellRef = useRef<HTMLDivElement | null>(null);
   const interactionHitTargetOverlayRef = useRef<HTMLDivElement | null>(null);
+  const isMountedRef = useRef(true);
+  const activePieceAnimationsRef = useRef<Record<string, ActivePieceAnimation>>({});
+  const animationFrameRef = useRef<number | null>(null);
+  const previousPiecePlacementsRef = useRef(piecePlacements);
+  const renderedActivePieceAnimationCount = prefersReducedMotion
+    ? 0
+    : activePieceAnimationCount;
+  const renderedPieceAnimationMetadataByRenderId = prefersReducedMotion
+    ? {}
+    : pieceAnimationMetadataByRenderId;
+  const renderedPieceAnimationPositionsByRenderId = prefersReducedMotion
+    ? {}
+    : pieceAnimationPositionsByRenderId;
 
   useEffect(() => {
     function restoreHitTargetPointerEvents() {
@@ -244,6 +286,81 @@ export function BoardScene({
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      activePieceAnimationsRef.current = {};
+      cancelScheduledAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const previousPiecePlacements = previousPiecePlacementsRef.current;
+    previousPiecePlacementsRef.current = piecePlacements;
+
+    const activeRenderIds = new Set(piecePlacements.map(({ renderId }) => renderId));
+    activePieceAnimationsRef.current = Object.fromEntries(
+      Object.entries(activePieceAnimationsRef.current).filter(([renderId]) =>
+        activeRenderIds.has(renderId),
+      ),
+    );
+
+    if (prefersReducedMotion) {
+      activePieceAnimationsRef.current = {};
+      cancelScheduledAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      return;
+    }
+
+    const movedPieceAnimations = getNormalMovePieceAnimations(
+      previousPiecePlacements,
+      piecePlacements,
+    );
+
+    if (movedPieceAnimations.length === 0) {
+      syncPieceAnimationFrame({
+        activePieceAnimationsRef,
+        isMountedRef,
+        nowMs: getAnimationTimestamp(),
+        setActivePieceAnimationCount,
+        setPieceAnimationMetadataByRenderId,
+        setPieceAnimationPositionsByRenderId,
+      });
+      return;
+    }
+
+    const animationStartTimeMs = getAnimationTimestamp();
+
+    movedPieceAnimations.forEach((movedPieceAnimation) => {
+      activePieceAnimationsRef.current[movedPieceAnimation.to.renderId] = {
+        durationMs: pieceMoveAnimationDurationMs,
+        fromPosition: getPiecePosition(movedPieceAnimation.from.square),
+        fromSquare: movedPieceAnimation.from.square,
+        startedAtMs: animationStartTimeMs,
+        toPosition: getPiecePosition(movedPieceAnimation.to.square),
+        toSquare: movedPieceAnimation.to.square,
+      };
+    });
+
+    syncPieceAnimationFrame({
+      activePieceAnimationsRef,
+      isMountedRef,
+      nowMs: getAnimationTimestamp(),
+      setActivePieceAnimationCount,
+      setPieceAnimationMetadataByRenderId,
+      setPieceAnimationPositionsByRenderId,
+    });
+    schedulePieceAnimationFrame({
+      activePieceAnimationsRef,
+      animationFrameRef,
+      isMountedRef,
+      setActivePieceAnimationCount,
+      setPieceAnimationMetadataByRenderId,
+      setPieceAnimationPositionsByRenderId,
+    });
+  }, [piecePlacements, prefersReducedMotion]);
+
   function handleCameraViewChange(nextCameraView: BoardCameraView) {
     setCameraView((currentCameraView) =>
       areCameraViewsEqual(currentCameraView, nextCameraView)
@@ -255,6 +372,17 @@ export function BoardScene({
   function handleCameraAction(action: BoardCameraAction) {
     setCameraView((currentCameraView) =>
       getNextCameraView(currentCameraView, action),
+    );
+  }
+
+  function getRenderedPieceAnimationMetadata(piecePlacement: ChessPiecePlacement) {
+    return (
+      renderedPieceAnimationMetadataByRenderId[piecePlacement.renderId] ?? {
+        durationMs: prefersReducedMotion ? 0 : pieceMoveAnimationDurationMs,
+        fromSquare: piecePlacement.square,
+        state: 'idle',
+        toSquare: piecePlacement.square,
+      }
     );
   }
 
@@ -300,22 +428,18 @@ export function BoardScene({
           cameraView={cameraView}
           className="board-scene-canvas"
           onCameraTelemetryChange={(nextCameraTelemetry) => {
-            startTransition(() => {
-              setCameraTelemetry((currentCameraTelemetry) =>
-                areCameraTelemetryEqual(
-                  currentCameraTelemetry,
-                  nextCameraTelemetry,
-                )
-                  ? currentCameraTelemetry
-                  : nextCameraTelemetry,
-              );
-            });
+            setCameraTelemetry((currentCameraTelemetry) =>
+              areCameraTelemetryEqual(
+                currentCameraTelemetry,
+                nextCameraTelemetry,
+              )
+                ? currentCameraTelemetry
+                : nextCameraTelemetry,
+            );
           }}
           onCameraViewChange={handleCameraViewChange}
           onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
-            startTransition(() => {
-              setSquareScreenPositions(nextSquareScreenPositions);
-            });
+            setSquareScreenPositions(nextSquareScreenPositions);
           }}
         >
           <SceneLighting />
@@ -438,7 +562,9 @@ export function BoardScene({
               );
             })}
             {piecePlacements.map((piecePlacement) => {
-              const position = getPiecePosition(piecePlacement.square);
+              const position =
+                renderedPieceAnimationPositionsByRenderId[piecePlacement.renderId] ??
+                getPiecePosition(piecePlacement.square);
 
               return (
                 <ChessPieceMesh
@@ -654,35 +780,58 @@ export function BoardScene({
           ))}
         </ul>
         <ul aria-label="Piece placements">
-          {piecePlacements.map((piecePlacement) => (
-            <li
-              data-board-surface-y={formatGroundingValue(boardSquareSurfaceY)}
-              data-color={piecePlacement.color}
-              data-grounding-convention={pieceGroundingConvention}
-              data-local-base-y={formatGroundingValue(pieceBaseContactLocalY)}
-              data-placement-y={formatGroundingValue(
-                getGroundedPiecePlacementY(),
-              )}
-              data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
-              data-piece={piecePlacement.piece}
-              data-render-id={piecePlacement.renderId}
-              data-square={piecePlacement.square}
-              data-testid="board-piece"
-              key={piecePlacement.renderId}
-            >
-              <span
-                aria-label={getPieceAccessibleLabel(piecePlacement)}
-                data-piece-color={piecePlacement.color}
+          {piecePlacements.map((piecePlacement) => {
+            const pieceAnimationMetadata =
+              getRenderedPieceAnimationMetadata(piecePlacement);
+
+            return (
+              <li
+                data-animation-duration-ms={pieceAnimationMetadata.durationMs}
+                data-animation-from-square={pieceAnimationMetadata.fromSquare}
+                data-animation-state={pieceAnimationMetadata.state}
+                data-animation-to-square={pieceAnimationMetadata.toSquare}
+                data-board-surface-y={formatGroundingValue(boardSquareSurfaceY)}
+                data-color={piecePlacement.color}
+                data-grounding-convention={pieceGroundingConvention}
+                data-local-base-y={formatGroundingValue(pieceBaseContactLocalY)}
+                data-placement-y={formatGroundingValue(
+                  getGroundedPiecePlacementY(),
+                )}
                 data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
+                data-piece={piecePlacement.piece}
+                data-render-id={piecePlacement.renderId}
                 data-square={piecePlacement.square}
-                data-piece-type={piecePlacement.piece}
-                data-testid={`board-piece-${piecePlacement.renderId}`}
+                data-testid="board-piece"
+                key={piecePlacement.renderId}
               >
-                {piecePlacement.color} {piecePlacement.piece} on {piecePlacement.square}
-              </span>
-            </li>
-          ))}
+                <span
+                  aria-label={getPieceAccessibleLabel(piecePlacement)}
+                  data-animation-duration-ms={pieceAnimationMetadata.durationMs}
+                  data-animation-from-square={pieceAnimationMetadata.fromSquare}
+                  data-animation-state={pieceAnimationMetadata.state}
+                  data-animation-to-square={pieceAnimationMetadata.toSquare}
+                  data-board-surface-y={formatGroundingValue(boardSquareSurfaceY)}
+                  data-piece-color={piecePlacement.color}
+                  data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
+                  data-piece-type={piecePlacement.piece}
+                  data-placement-y={formatGroundingValue(
+                    getGroundedPiecePlacementY(),
+                  )}
+                  data-square={piecePlacement.square}
+                  data-testid={`board-piece-${piecePlacement.renderId}`}
+                >
+                  {piecePlacement.color} {piecePlacement.piece} on {piecePlacement.square}
+                </span>
+              </li>
+            );
+          })}
         </ul>
+        <div
+          data-active-piece-animations={renderedActivePieceAnimationCount}
+          data-animation-duration-ms={prefersReducedMotion ? 0 : pieceMoveAnimationDurationMs}
+          data-prefers-reduced-motion={String(prefersReducedMotion)}
+          data-testid="board-piece-animation-state"
+        />
         <div
           data-dark-square-material={boardVisualContract.darkSquareMaterialId}
           data-frame-style={boardVisualContract.frameStyleId}
@@ -1388,6 +1537,290 @@ function getGroundedPiecePlacementY() {
   return boardSquareSurfaceY - pieceBaseContactLocalY;
 }
 
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const reducedMotionMediaQuery = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    );
+    const handleChange = () => {
+      setPrefersReducedMotion(reducedMotionMediaQuery.matches);
+    };
+
+    handleChange();
+
+    if (typeof reducedMotionMediaQuery.addEventListener === 'function') {
+      reducedMotionMediaQuery.addEventListener('change', handleChange);
+    } else {
+      reducedMotionMediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (typeof reducedMotionMediaQuery.removeEventListener === 'function') {
+        reducedMotionMediaQuery.removeEventListener('change', handleChange);
+      } else {
+        reducedMotionMediaQuery.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function getNormalMovePieceAnimations(
+  previousPiecePlacements: readonly ChessPiecePlacement[],
+  nextPiecePlacements: readonly ChessPiecePlacement[],
+) {
+  const previousRenderIds = new Set(
+    previousPiecePlacements.map(({ renderId }) => renderId),
+  );
+  const nextRenderIds = new Set(nextPiecePlacements.map(({ renderId }) => renderId));
+  const removedPiecePlacements = previousPiecePlacements.filter(
+    ({ renderId }) => !nextRenderIds.has(renderId),
+  );
+  const addedPiecePlacements = nextPiecePlacements.filter(
+    ({ renderId }) => !previousRenderIds.has(renderId),
+  );
+  const unmatchedRemovedPiecePlacements = [...removedPiecePlacements];
+  const movedPieceAnimations: Array<{
+    from: ChessPiecePlacement;
+    to: ChessPiecePlacement;
+  }> = [];
+
+  addedPiecePlacements.forEach((to) => {
+    const fromPiecePlacement = getMatchingRemovedPiecePlacement({
+      addedPiecePlacement: to,
+      addedPiecePlacements,
+      unmatchedRemovedPiecePlacements,
+    });
+
+    if (!fromPiecePlacement || fromPiecePlacement.square === to.square) {
+      return;
+    }
+
+    movedPieceAnimations.push({
+      from: fromPiecePlacement,
+      to,
+    });
+  });
+
+  return movedPieceAnimations;
+}
+
+function getMatchingRemovedPiecePlacement({
+  addedPiecePlacement,
+  addedPiecePlacements,
+  unmatchedRemovedPiecePlacements,
+}: {
+  addedPiecePlacement: ChessPiecePlacement;
+  addedPiecePlacements: readonly ChessPiecePlacement[];
+  unmatchedRemovedPiecePlacements: ChessPiecePlacement[];
+}) {
+  const exactMatch = takeMatchingRemovedPiecePlacement(
+    unmatchedRemovedPiecePlacements,
+    (piecePlacement) =>
+      piecePlacement.color === addedPiecePlacement.color &&
+      piecePlacement.piece === addedPiecePlacement.piece,
+  );
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  if (addedPiecePlacements.length !== 1) {
+    return null;
+  }
+
+  return takeMatchingRemovedPiecePlacement(
+    unmatchedRemovedPiecePlacements,
+    (piecePlacement) => piecePlacement.color === addedPiecePlacement.color,
+  );
+}
+
+function takeMatchingRemovedPiecePlacement(
+  unmatchedRemovedPiecePlacements: ChessPiecePlacement[],
+  matchesPiecePlacement: (piecePlacement: ChessPiecePlacement) => boolean,
+) {
+  const matchingRemovedPiecePlacementIndexes = unmatchedRemovedPiecePlacements
+    .map((piecePlacement, index) =>
+      matchesPiecePlacement(piecePlacement) ? index : -1,
+    )
+    .filter((index) => index >= 0);
+
+  if (matchingRemovedPiecePlacementIndexes.length !== 1) {
+    return null;
+  }
+
+  const [matchingRemovedPiecePlacementIndex] = matchingRemovedPiecePlacementIndexes;
+  const [matchingRemovedPiecePlacement] = unmatchedRemovedPiecePlacements.splice(
+    matchingRemovedPiecePlacementIndex,
+    1,
+  );
+
+  return matchingRemovedPiecePlacement ?? null;
+}
+
+function getAnimationTimestamp() {
+  return Date.now();
+}
+
+function cancelScheduledAnimationFrame(animationFrameId: number | null) {
+  if (animationFrameId === null) {
+    return;
+  }
+
+  cancelAnimationFrame(animationFrameId);
+}
+
+function schedulePieceAnimationFrame({
+  activePieceAnimationsRef,
+  animationFrameRef,
+  isMountedRef,
+  setActivePieceAnimationCount,
+  setPieceAnimationMetadataByRenderId,
+  setPieceAnimationPositionsByRenderId,
+}: {
+  activePieceAnimationsRef: { current: Record<string, ActivePieceAnimation> };
+  animationFrameRef: { current: number | null };
+  isMountedRef: { current: boolean };
+  setActivePieceAnimationCount: (count: number) => void;
+  setPieceAnimationMetadataByRenderId: (
+    metadataByRenderId: Record<string, PieceAnimationMetadata>,
+  ) => void;
+  setPieceAnimationPositionsByRenderId: (
+    positionsByRenderId: Record<string, PiecePosition3D>,
+  ) => void;
+}) {
+  if (!isMountedRef.current || animationFrameRef.current !== null) {
+    return;
+  }
+
+  const tick = () => {
+    animationFrameRef.current = null;
+
+    if (!isMountedRef.current) {
+      activePieceAnimationsRef.current = {};
+      return;
+    }
+
+    const activePieceAnimationCount = syncPieceAnimationFrame({
+      activePieceAnimationsRef,
+      isMountedRef,
+      nowMs: getAnimationTimestamp(),
+      setActivePieceAnimationCount,
+      setPieceAnimationMetadataByRenderId,
+      setPieceAnimationPositionsByRenderId,
+    });
+
+    if (activePieceAnimationCount > 0) {
+      schedulePieceAnimationFrame({
+        activePieceAnimationsRef,
+        animationFrameRef,
+        isMountedRef,
+        setActivePieceAnimationCount,
+        setPieceAnimationMetadataByRenderId,
+        setPieceAnimationPositionsByRenderId,
+      });
+    }
+  };
+
+  animationFrameRef.current = requestAnimationFrame(tick);
+}
+
+function syncPieceAnimationFrame({
+  activePieceAnimationsRef,
+  isMountedRef,
+  nowMs,
+  setActivePieceAnimationCount,
+  setPieceAnimationMetadataByRenderId,
+  setPieceAnimationPositionsByRenderId,
+}: {
+  activePieceAnimationsRef: { current: Record<string, ActivePieceAnimation> };
+  isMountedRef: { current: boolean };
+  nowMs: number;
+  setActivePieceAnimationCount: (count: number) => void;
+  setPieceAnimationMetadataByRenderId: (
+    metadataByRenderId: Record<string, PieceAnimationMetadata>,
+  ) => void;
+  setPieceAnimationPositionsByRenderId: (
+    positionsByRenderId: Record<string, PiecePosition3D>,
+  ) => void;
+}) {
+  const nextActivePieceAnimations: Record<string, ActivePieceAnimation> = {};
+  const nextPieceAnimationMetadataByRenderId: Record<
+    string,
+    PieceAnimationMetadata
+  > = {};
+  const nextPieceAnimationPositionsByRenderId: Record<string, PiecePosition3D> = {};
+
+  if (!isMountedRef.current) {
+    activePieceAnimationsRef.current = {};
+    return 0;
+  }
+
+  Object.entries(activePieceAnimationsRef.current).forEach(
+    ([renderId, pieceAnimation]) => {
+      const animationProgress =
+        pieceAnimation.durationMs <= 0
+          ? 1
+          : clamp(
+              (nowMs - pieceAnimation.startedAtMs) / pieceAnimation.durationMs,
+              0,
+              1,
+            );
+
+      if (animationProgress >= 1) {
+        return;
+      }
+
+      nextActivePieceAnimations[renderId] = pieceAnimation;
+      nextPieceAnimationMetadataByRenderId[renderId] = {
+        durationMs: pieceAnimation.durationMs,
+        fromSquare: pieceAnimation.fromSquare,
+        state: 'running',
+        toSquare: pieceAnimation.toSquare,
+      };
+      nextPieceAnimationPositionsByRenderId[renderId] = interpolatePiecePosition(
+        pieceAnimation.fromPosition,
+        pieceAnimation.toPosition,
+        easePieceAnimationProgress(animationProgress),
+      );
+    },
+  );
+
+  activePieceAnimationsRef.current = nextActivePieceAnimations;
+  setActivePieceAnimationCount(Object.keys(nextActivePieceAnimations).length);
+  setPieceAnimationMetadataByRenderId(nextPieceAnimationMetadataByRenderId);
+  setPieceAnimationPositionsByRenderId(nextPieceAnimationPositionsByRenderId);
+
+  return Object.keys(nextActivePieceAnimations).length;
+}
+
+function easePieceAnimationProgress(progress: number) {
+  if (progress < 0.5) {
+    return 4 * progress * progress * progress;
+  }
+
+  return 1 - Math.pow(-2 * progress + 2, 3) / 2;
+}
+
+function interpolatePiecePosition(
+  fromPosition: PiecePosition3D,
+  toPosition: PiecePosition3D,
+  progress: number,
+): PiecePosition3D {
+  return [
+    roundToTwoDecimals(fromPosition[0] + (toPosition[0] - fromPosition[0]) * progress),
+    roundToTwoDecimals(fromPosition[1] + (toPosition[1] - fromPosition[1]) * progress),
+    roundToTwoDecimals(fromPosition[2] + (toPosition[2] - fromPosition[2]) * progress),
+  ];
+}
+
 function formatGroundingValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
@@ -1716,8 +2149,12 @@ function getInteractionHitTargetStyle(
           : Math.min(currentClosestDistance, candidateDistance),
       null,
     );
-  const targetSize = roundToTwoDecimals(
-    clamp((closestNeighborDistance ?? 42) * 0.72, 18, 72),
+  const targetSize = roundToNearestPixel(
+    clamp(
+      (closestNeighborDistance ?? 42) * 0.72,
+      interactionHitTargetMinSizePx,
+      interactionHitTargetMaxSizePx,
+    ),
   );
 
   return {
@@ -1863,10 +2300,10 @@ function projectBoardPositionToScreen({
   z: number;
 }): BoardSquareScreenPosition {
   const projectedVector = new Vector3(x, y, z).project(camera);
-  const screenX = roundToTwoDecimals(
+  const screenX = roundToNearestPixel(
     (projectedVector.x * 0.5 + 0.5) * size.width,
   );
-  const screenY = roundToTwoDecimals(
+  const screenY = roundToNearestPixel(
     (-projectedVector.y * 0.5 + 0.5) * size.height,
   );
 
@@ -1874,10 +2311,10 @@ function projectBoardPositionToScreen({
     visible:
       projectedVector.z >= -1 &&
       projectedVector.z <= 1 &&
-      screenX >= 0 &&
-      screenX <= size.width &&
-      screenY >= 0 &&
-      screenY <= size.height,
+      screenX >= -interactionHitTargetViewportMarginPx &&
+      screenX <= size.width + interactionHitTargetViewportMarginPx &&
+      screenY >= -interactionHitTargetViewportMarginPx &&
+      screenY <= size.height + interactionHitTargetViewportMarginPx,
     x: screenX,
     y: screenY,
   };
@@ -1885,4 +2322,8 @@ function projectBoardPositionToScreen({
 
 function roundToTwoDecimals(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function roundToNearestPixel(value: number): number {
+  return Math.round(value);
 }
