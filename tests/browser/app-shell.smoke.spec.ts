@@ -150,3 +150,65 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     /^(black) /,
   );
 });
+
+test('keeps the board visible and scrolls long move history inside the controls panel', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByTestId('move-history-section')).toBeVisible();
+  await expect(page.getByTestId('move-history-scroll')).toBeVisible();
+
+  await page.evaluate(() => {
+    const historySection = document.querySelector('[data-testid="move-history-scroll"]');
+
+    if (!(historySection instanceof HTMLElement)) {
+      throw new Error('Move history scroll container not found');
+    }
+
+    historySection.innerHTML = `
+      <ol>
+        ${Array.from({ length: 80 }, (_, index) => `<li>${index + 1}. human e2e4</li>`).join('')}
+      </ol>
+    `;
+  });
+
+  const layoutMetrics = await page.evaluate(() => {
+    const boardRegion = document.querySelector('[data-testid="board-region"]');
+    const panelScroll = document.querySelector('[data-testid="panel-scroll"]');
+    const historySection = document.querySelector('[data-testid="move-history-scroll"]');
+
+    if (!(boardRegion instanceof HTMLElement)) {
+      throw new Error('Board region not found');
+    }
+
+    if (!(panelScroll instanceof HTMLElement)) {
+      throw new Error('Panel scroll container not found');
+    }
+
+    if (!(historySection instanceof HTMLElement)) {
+      throw new Error('Move history section not found');
+    }
+
+    const boardRect = boardRegion.getBoundingClientRect();
+
+    return {
+      boardBottom: boardRect.bottom,
+      documentScrollHeight: document.documentElement.scrollHeight,
+      historyScrollHeight: historySection.scrollHeight,
+      panelClientHeight: panelScroll.clientHeight,
+      panelScrollHeight: panelScroll.scrollHeight,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(layoutMetrics.documentScrollHeight).toBeLessThanOrEqual(
+    layoutMetrics.viewportHeight,
+  );
+  expect(layoutMetrics.boardBottom).toBeLessThanOrEqual(layoutMetrics.viewportHeight);
+  expect(layoutMetrics.panelScrollHeight).toBeGreaterThan(
+    layoutMetrics.panelClientHeight,
+  );
+  expect(layoutMetrics.historyScrollHeight).toBeGreaterThan(
+    layoutMetrics.panelClientHeight,
+  );
+});

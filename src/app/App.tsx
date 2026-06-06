@@ -120,10 +120,11 @@ export function App({
         </p>
       </header>
 
-      <main className="workspace-grid">
+      <main className="workspace-grid" data-testid="workspace-grid">
         <section
           aria-label="Board region"
           className="workspace-card board-region"
+          data-testid="board-region"
           role="region"
         >
           <div className="card-chrome">
@@ -143,13 +144,14 @@ export function App({
         <section
           aria-label="Panel region"
           className="workspace-card panel-region"
+          data-testid="panel-region"
           role="region"
         >
           <div className="card-chrome">
             <span>Controls</span>
             <span>{gameStatusLabel}</span>
           </div>
-          <div className="panel-scroll">
+          <div className="panel-scroll" data-testid="panel-scroll">
             {pendingPromotion ? (
               <PromotionDialog
                 choices={pendingPromotion.choices}

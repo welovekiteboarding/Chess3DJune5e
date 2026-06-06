@@ -45,10 +45,8 @@ export function GamePanel({
   return (
     <section
       aria-labelledby="game-panel-title"
-      style={{
-        display: 'grid',
-        gap: '1rem',
-      }}
+      className="game-panel"
+      data-testid="game-panel"
     >
       <header>
         <h2
@@ -64,10 +62,7 @@ export function GamePanel({
 
       <div
         aria-label="Current game details"
-        style={{
-          display: 'grid',
-          gap: '0.5rem',
-        }}
+        className="game-panel__details"
       >
         <p style={{ margin: 0 }}>Status: {status}</p>
         <p style={{ margin: 0 }}>Side to move: {sideToMove}</p>
@@ -93,17 +88,11 @@ export function GamePanel({
 
       <div
         aria-label="Game controls"
-        style={{
-          display: 'grid',
-          gap: '0.75rem',
-        }}
+        className="game-panel__controls"
       >
         <label
+          className="game-panel__field"
           htmlFor="game-panel-difficulty"
-          style={{
-            display: 'grid',
-            gap: '0.35rem',
-          }}
         >
           <span>AI difficulty</span>
           <select
@@ -136,7 +125,11 @@ export function GamePanel({
         ) : null}
       </div>
 
-      <section aria-label="Move history">
+      <section
+        aria-label="Move history"
+        className="game-panel__history"
+        data-testid="move-history-section"
+      >
         <h3
           style={{
             margin: '0 0 0.75rem',
@@ -145,20 +138,20 @@ export function GamePanel({
         >
           Move history
         </h3>
-        {moveHistory.length > 0 ? (
-          <ol
-            style={{
-              margin: 0,
-              paddingLeft: '1.25rem',
-            }}
-          >
-            {moveHistory.map((move) => (
-              <li key={move}>{move}</li>
-            ))}
-          </ol>
-        ) : (
-          <p style={{ margin: 0 }}>No moves yet.</p>
-        )}
+        <div
+          className="game-panel__history-scroll"
+          data-testid="move-history-scroll"
+        >
+          {moveHistory.length > 0 ? (
+            <ol className="game-panel__history-list" data-testid="move-history-list">
+              {moveHistory.map((move) => (
+                <li key={move}>{move}</li>
+              ))}
+            </ol>
+          ) : (
+            <p style={{ margin: 0 }}>No moves yet.</p>
+          )}
+        </div>
       </section>
     </section>
   );
