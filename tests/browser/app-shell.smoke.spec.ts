@@ -42,6 +42,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await page.goto('/');
 
   const boardScene = page.getByTestId('board-scene');
+  const cameraState = page.getByTestId('board-camera-state');
   const overlay = page.getByTestId('board-scene-interaction-overlay');
   const e2Square = getSquareButton(overlay, 'e2');
   const e3Square = getSquareButton(overlay, 'e3');
@@ -64,8 +65,18 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(overlay.getByRole('button', { name: / square$/i })).toHaveCount(64);
   await expect(page.getByText('No moves yet.')).toBeVisible();
   await expect(page.getByText('Latest error: None')).toBeVisible();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
   await expect(e2Square).toHaveAttribute('data-piece', 'white pawn');
   await expect(e4Square).toHaveAttribute('data-piece', 'empty');
+
+  await page.getByRole('button', { name: 'Overhead view' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
+
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 
   await e2Square.click();
 

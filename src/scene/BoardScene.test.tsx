@@ -85,6 +85,45 @@ describe('BoardScene', () => {
     expect(handleSquareSelect).toHaveBeenCalledTimes(1);
   });
 
+  it('renders camera controls with overhead and reset actions', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(
+      screen.getByRole('toolbar', { name: 'Board camera controls' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'default',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overhead view' }));
+
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'overhead',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate left' }));
+
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'custom',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
+
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'default',
+    );
+  });
+
   it('renders one piece representation for every placement in the starting position', () => {
     const gameState = createInitialGameState();
     const piecePlacements = getPiecePlacementsFromFen(getFen(gameState));

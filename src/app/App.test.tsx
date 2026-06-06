@@ -77,6 +77,44 @@ describe('App', () => {
     expect(screen.queryByTestId('legal-destination-square-e5')).not.toBeInTheDocument();
   });
 
+  it('keeps visible-board move interaction working after camera controls are used', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overhead view' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
+
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'default',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+      'data-square',
+      'e4',
+    );
+    expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
+  });
+
   it('applies a legal human click-to-move sequence without triggering an AI request', () => {
     const engine = createFakeEngine();
     const store = createGameStore({

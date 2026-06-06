@@ -1,9 +1,22 @@
-import { Canvas, type ThreeEvent } from '@react-three/fiber';
-import type { ComponentType, PropsWithChildren } from 'react';
+import { OrbitControls } from '@react-three/drei';
+import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber';
+import type { Camera } from 'three';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { useEffect, useRef, useState, type ComponentType, type PropsWithChildren } from 'react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 
+type BoardCameraViewMode = 'custom' | 'default' | 'overhead';
+
+interface BoardCameraView {
+  azimuth: number;
+  distance: number;
+  polar: number;
+  viewMode: BoardCameraViewMode;
+}
+
 export interface BoardSceneCanvasProps extends PropsWithChildren {
+  cameraView?: BoardCameraView;
   className?: string;
 }
 
@@ -26,6 +39,25 @@ interface BoardSquareDefinition {
 const boardSquares = createBoardSquares();
 const squareSize = 1;
 const boardHalfSpan = 3.5;
+const minCameraDistance = 6.6;
+const maxCameraDistance = 12.5;
+const minCameraPolar = 0.18;
+const maxCameraPolar = 1.24;
+const cameraRotateStep = Math.PI / 10;
+const cameraTiltStep = 0.14;
+const cameraZoomStep = 0.8;
+const defaultCameraView: BoardCameraView = {
+  azimuth: 0,
+  distance: 9.92,
+  polar: 0.71,
+  viewMode: 'default',
+};
+const overheadCameraView: BoardCameraView = {
+  azimuth: 0,
+  distance: 8.4,
+  polar: 0.24,
+  viewMode: 'overhead',
+};
 const fallbackOnlyStyle = {
   position: 'absolute',
   width: '1px',
@@ -58,15 +90,19 @@ const interactionSquareStyle = {
 } as const;
 
 function DefaultBoardSceneCanvas({
+  cameraView = defaultCameraView,
   children,
   className,
 }: BoardSceneCanvasProps) {
+  const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
+
   return (
     <Canvas
-      camera={{ position: [0, 7.5, 6.5], fov: 42 }}
+      camera={{ position: [cameraX, cameraY, cameraZ], fov: 42 }}
       className={className}
       shadows
     >
+      <BoardSceneCameraRig cameraView={cameraView} />
       {children}
     </Canvas>
   );
@@ -82,6 +118,13 @@ export function BoardScene({
 }: BoardSceneProps) {
   const legalDestinationSet = new Set(legalDestinationSquares);
   const legalDestinationMarkers = Array.from(legalDestinationSet);
+  const [cameraView, setCameraView] = useState(defaultCameraView);
+
+  function handleCameraAction(action: BoardCameraAction) {
+    setCameraView((currentCameraView) =>
+      getNextCameraView(currentCameraView, action),
+    );
+  }
 
   return (
     <section
@@ -93,7 +136,10 @@ export function BoardScene({
         className="board-scene-canvas-shell"
         data-testid="board-scene-canvas-shell"
       >
-        <CanvasBoundary className="board-scene-canvas">
+        <CanvasBoundary
+          cameraView={cameraView}
+          className="board-scene-canvas"
+        >
           <color args={['#e8ecf4']} attach="background" />
           <ambientLight intensity={0.8} />
           <directionalLight
@@ -177,6 +223,81 @@ export function BoardScene({
             })}
           </group>
         </CanvasBoundary>
+
+        <div className="board-scene-camera-ui">
+          <div
+            aria-label="Board camera controls"
+            className="board-scene-camera-toolbar"
+            role="toolbar"
+          >
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('rotate-left')}
+              type="button"
+            >
+              Rotate left
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('rotate-right')}
+              type="button"
+            >
+              Rotate right
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('tilt-up')}
+              type="button"
+            >
+              Tilt up
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('tilt-down')}
+              type="button"
+            >
+              Tilt down
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('zoom-in')}
+              type="button"
+            >
+              Zoom in
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('zoom-out')}
+              type="button"
+            >
+              Zoom out
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('overhead')}
+              type="button"
+            >
+              Overhead view
+            </button>
+            <button
+              className="board-scene-camera-button"
+              onClick={() => handleCameraAction('reset')}
+              type="button"
+            >
+              Reset view
+            </button>
+          </div>
+
+          <p
+            aria-live="polite"
+            className="board-scene-camera-status"
+            data-testid="board-camera-state"
+            data-view-mode={cameraView.viewMode}
+            role="status"
+          >
+            {getCameraViewLabel(cameraView.viewMode)}
+          </p>
+        </div>
       </div>
 
       <div
@@ -254,6 +375,51 @@ export function BoardScene({
   );
 }
 
+type BoardCameraAction =
+  | 'overhead'
+  | 'reset'
+  | 'rotate-left'
+  | 'rotate-right'
+  | 'tilt-down'
+  | 'tilt-up'
+  | 'zoom-in'
+  | 'zoom-out';
+
+function BoardSceneCameraRig({
+  cameraView,
+}: {
+  cameraView: BoardCameraView;
+}) {
+  const camera = useThree((state) => state.camera);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
+  useEffect(() => {
+    const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
+
+    setCameraPosition(camera, cameraX, cameraY, cameraZ);
+    camera.lookAt(0, 0, 0);
+    controlsRef.current?.target.set(0, 0, 0);
+    controlsRef.current?.update();
+  }, [camera, cameraView]);
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      dampingFactor={0.12}
+      enableDamping
+      enablePan={false}
+      makeDefault
+      maxDistance={maxCameraDistance}
+      maxPolarAngle={maxCameraPolar}
+      minDistance={minCameraDistance}
+      minPolarAngle={minCameraPolar}
+      rotateSpeed={0.85}
+      target={[0, 0, 0]}
+      zoomSpeed={0.9}
+    />
+  );
+}
+
 function createBoardSquares(): BoardSquareDefinition[] {
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
   const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'] as const;
@@ -313,4 +479,101 @@ function handleSceneSquareClick(
 ) {
   event.stopPropagation();
   onSquareSelect?.(square);
+}
+
+function getNextCameraView(
+  currentCameraView: BoardCameraView,
+  action: BoardCameraAction,
+): BoardCameraView {
+  switch (action) {
+    case 'reset':
+      return defaultCameraView;
+    case 'overhead':
+      return overheadCameraView;
+    case 'rotate-left':
+      return createCustomCameraView(currentCameraView, {
+        azimuth: currentCameraView.azimuth - cameraRotateStep,
+      });
+    case 'rotate-right':
+      return createCustomCameraView(currentCameraView, {
+        azimuth: currentCameraView.azimuth + cameraRotateStep,
+      });
+    case 'tilt-up':
+      return createCustomCameraView(currentCameraView, {
+        polar: clamp(
+          currentCameraView.polar - cameraTiltStep,
+          minCameraPolar,
+          maxCameraPolar,
+        ),
+      });
+    case 'tilt-down':
+      return createCustomCameraView(currentCameraView, {
+        polar: clamp(
+          currentCameraView.polar + cameraTiltStep,
+          minCameraPolar,
+          maxCameraPolar,
+        ),
+      });
+    case 'zoom-in':
+      return createCustomCameraView(currentCameraView, {
+        distance: clamp(
+          currentCameraView.distance - cameraZoomStep,
+          minCameraDistance,
+          maxCameraDistance,
+        ),
+      });
+    case 'zoom-out':
+      return createCustomCameraView(currentCameraView, {
+        distance: clamp(
+          currentCameraView.distance + cameraZoomStep,
+          minCameraDistance,
+          maxCameraDistance,
+        ),
+      });
+  }
+}
+
+function createCustomCameraView(
+  currentCameraView: BoardCameraView,
+  nextValues: Partial<BoardCameraView>,
+): BoardCameraView {
+  return {
+    ...currentCameraView,
+    ...nextValues,
+    viewMode: 'custom',
+  };
+}
+
+function getCameraPosition(cameraView: BoardCameraView): [number, number, number] {
+  const horizontalDistance = Math.sin(cameraView.polar) * cameraView.distance;
+
+  return [
+    Math.sin(cameraView.azimuth) * horizontalDistance,
+    Math.cos(cameraView.polar) * cameraView.distance,
+    Math.cos(cameraView.azimuth) * horizontalDistance,
+  ];
+}
+
+function getCameraViewLabel(viewMode: BoardCameraViewMode): string {
+  switch (viewMode) {
+    case 'default':
+      return 'Default camera view';
+    case 'overhead':
+      return 'Overhead camera view';
+    case 'custom':
+      return 'Custom camera view';
+  }
+}
+
+function clamp(value: number, minValue: number, maxValue: number): number {
+  return Math.min(Math.max(value, minValue), maxValue);
+}
+
+function setCameraPosition(
+  camera: Camera,
+  cameraX: number,
+  cameraY: number,
+  cameraZ: number,
+) {
+  camera.position.set(cameraX, cameraY, cameraZ);
 }
