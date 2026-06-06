@@ -238,6 +238,79 @@ describe('BoardScene', () => {
     );
   });
 
+  it('renders deterministic visual identifiers for every piece type', () => {
+    const piecePlacements: ChessPiecePlacement[] = [
+      { renderId: 'white-king-e1', square: 'e1', piece: 'king', color: 'white' },
+      {
+        renderId: 'white-queen-d1',
+        square: 'd1',
+        piece: 'queen',
+        color: 'white',
+      },
+      { renderId: 'white-rook-a1', square: 'a1', piece: 'rook', color: 'white' },
+      {
+        renderId: 'black-bishop-c8',
+        square: 'c8',
+        piece: 'bishop',
+        color: 'black',
+      },
+      {
+        renderId: 'black-knight-g8',
+        square: 'g8',
+        piece: 'knight',
+        color: 'black',
+      },
+      { renderId: 'black-pawn-e7', square: 'e7', piece: 'pawn', color: 'black' },
+    ];
+
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        piecePlacements={piecePlacements}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(screen.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
+      'aria-label',
+      'white king piece on e1',
+    );
+    expect(screen.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
+      'data-piece-marker',
+      'cross-crown',
+    );
+    expect(screen.getByTestId('board-piece-white-queen-d1')).toHaveAttribute(
+      'data-piece-marker',
+      'crown',
+    );
+    expect(screen.getByTestId('board-piece-white-rook-a1')).toHaveAttribute(
+      'data-piece-marker',
+      'battlement',
+    );
+    expect(screen.getByTestId('board-piece-black-bishop-c8')).toHaveAttribute(
+      'data-piece-marker',
+      'spire',
+    );
+    expect(screen.getByTestId('board-piece-black-knight-g8')).toHaveAttribute(
+      'data-piece-marker',
+      'horse-head',
+    );
+    expect(screen.getByTestId('board-piece-black-pawn-e7')).toHaveAttribute(
+      'data-piece-marker',
+      'orb',
+    );
+
+    expect(screen.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
+      'data-piece-type',
+      'king',
+    );
+    expect(screen.getByTestId('board-piece-black-knight-g8')).toHaveAttribute(
+      'data-piece-color',
+      'black',
+    );
+  });
+
   it('removes structural legal-destination markers when no legal squares are provided', () => {
     const { rerender } = render(
       <BoardScene

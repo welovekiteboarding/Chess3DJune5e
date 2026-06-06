@@ -16,6 +16,11 @@ import {
 } from 'react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
+import {
+  ChessPieceMesh,
+  getPieceAccessibleLabel,
+  pieceMarkerByType,
+} from './pieces';
 
 type BoardCameraViewMode = 'custom' | 'default' | 'overhead';
 
@@ -274,44 +279,12 @@ export function BoardScene({
               const position = getPiecePosition(piecePlacement.square);
 
               return (
-                <group key={piecePlacement.renderId}>
-                  <mesh
-                    castShadow
-                    onClick={(event) =>
-                      handleSceneSquareClick(
-                        event,
-                        piecePlacement.square,
-                        onSquareSelect,
-                      )
-                    }
-                    position={position}
-                  >
-                    <cylinderGeometry args={[0.22, 0.3, 0.45, 24]} />
-                    <meshStandardMaterial
-                      color={
-                        piecePlacement.color === 'white' ? '#f8f4e8' : '#1d2430'
-                      }
-                    />
-                  </mesh>
-                  <mesh
-                    castShadow
-                    onClick={(event) =>
-                      handleSceneSquareClick(
-                        event,
-                        piecePlacement.square,
-                        onSquareSelect,
-                      )
-                    }
-                    position={[position[0], position[1] + 0.3, position[2]]}
-                  >
-                    <sphereGeometry args={[0.16, 20, 20]} />
-                    <meshStandardMaterial
-                      color={
-                        piecePlacement.color === 'white' ? '#ded3bc' : '#384152'
-                      }
-                    />
-                  </mesh>
-                </group>
+                <ChessPieceMesh
+                  key={piecePlacement.renderId}
+                  onSelect={onSquareSelect}
+                  piecePlacement={piecePlacement}
+                  position={position}
+                />
               );
             })}
           </group>
@@ -482,6 +455,7 @@ export function BoardScene({
           {piecePlacements.map((piecePlacement) => (
             <li
               data-color={piecePlacement.color}
+              data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
               data-piece={piecePlacement.piece}
               data-render-id={piecePlacement.renderId}
               data-square={piecePlacement.square}
@@ -489,7 +463,11 @@ export function BoardScene({
               key={piecePlacement.renderId}
             >
               <span
+                aria-label={getPieceAccessibleLabel(piecePlacement)}
+                data-piece-color={piecePlacement.color}
+                data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
                 data-square={piecePlacement.square}
+                data-piece-type={piecePlacement.piece}
                 data-testid={`board-piece-${piecePlacement.renderId}`}
               >
                 {piecePlacement.color} {piecePlacement.piece} on {piecePlacement.square}
