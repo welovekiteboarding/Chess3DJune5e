@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
-import { type Camera, Matrix4, MOUSE, TOUCH, Vector3 } from 'three';
+import { type Camera, MOUSE, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   startTransition,
@@ -72,7 +72,6 @@ const boardSquares = createBoardSquares();
 const squareSize = 1;
 const boardSquareHeight = 0.18;
 const boardHalfSpan = 3.5;
-const boardRotationRadians = -0.72;
 const boardSquareSurfaceY = boardSquareHeight / 2;
 const minCameraDistance = 4.8;
 const maxCameraDistance = 16.8;
@@ -126,7 +125,6 @@ const interactionHitTargetStyle = {
   padding: 0,
   margin: 0,
 } as const;
-const boardRotationMatrix = new Matrix4().makeRotationX(boardRotationRadians);
 const cameraTarget = new Vector3(0, 0, 0);
 
 function DefaultBoardSceneCanvas({
@@ -250,7 +248,7 @@ export function BoardScene({
             shadow-mapSize-height={1024}
             shadow-mapSize-width={1024}
           />
-          <group rotation={[-0.72, 0, 0]}>
+          <group>
             <mesh position={[0, -0.12, 0]} receiveShadow>
               <boxGeometry args={[8.8, 0.2, 8.8]} />
               <meshStandardMaterial color="#3b2f2a" />
@@ -324,81 +322,81 @@ export function BoardScene({
             );
           })}
         </div>
+      </div>
 
-        <div className="board-scene-camera-ui">
-          <div
-            aria-label="Board camera controls"
-            className="board-scene-camera-toolbar"
-            role="toolbar"
+      <div className="board-scene-camera-ui">
+        <div
+          aria-label="Board camera controls"
+          className="board-scene-camera-toolbar"
+          role="toolbar"
+        >
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('rotate-left')}
+            type="button"
           >
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('rotate-left')}
-              type="button"
-            >
-              Rotate left
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('rotate-right')}
-              type="button"
-            >
-              Rotate right
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('tilt-up')}
-              type="button"
-            >
-              Tilt up
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('tilt-down')}
-              type="button"
-            >
-              Tilt down
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('zoom-in')}
-              type="button"
-            >
-              Zoom in
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('zoom-out')}
-              type="button"
-            >
-              Zoom out
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('overhead')}
-              type="button"
-            >
-              Overhead view
-            </button>
-            <button
-              className="board-scene-camera-button"
-              onClick={() => handleCameraAction('reset')}
-              type="button"
-            >
-              Reset view
-            </button>
-          </div>
-
-          <p
-            aria-live="polite"
-            className="board-scene-camera-status"
-            data-testid="board-camera-state"
-            data-view-mode={cameraView.viewMode}
-            role="status"
+            Rotate left
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('rotate-right')}
+            type="button"
           >
-            {getCameraViewLabel(cameraView.viewMode)}
-          </p>
+            Rotate right
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('tilt-up')}
+            type="button"
+          >
+            Tilt up
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('tilt-down')}
+            type="button"
+          >
+            Tilt down
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('zoom-in')}
+            type="button"
+          >
+            Zoom in
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('zoom-out')}
+            type="button"
+          >
+            Zoom out
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('overhead')}
+            type="button"
+          >
+            Overhead view
+          </button>
+          <button
+            className="board-scene-camera-button"
+            onClick={() => handleCameraAction('reset')}
+            type="button"
+          >
+            Reset view
+          </button>
         </div>
+
+        <p
+          aria-live="polite"
+          className="board-scene-camera-status"
+          data-testid="board-camera-state"
+          data-view-mode={cameraView.viewMode}
+          role="status"
+        >
+          {getCameraViewLabel(cameraView.viewMode)}
+        </p>
       </div>
 
       <div
@@ -515,14 +513,21 @@ function BoardSceneCameraRig({
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const lastSquareScreenPositionsRef = useRef('');
   const lastCameraViewSnapshotRef = useRef(getCameraViewSnapshot(cameraView));
+  const lastPublishedCameraViewRef = useRef(cameraView);
 
   useLayoutEffect(() => {
     const controls = controlsRef.current;
     const nextCameraViewSnapshot = getCameraViewSnapshot(cameraView);
+    lastCameraViewSnapshotRef.current = nextCameraViewSnapshot;
+    lastPublishedCameraViewRef.current = cameraView;
 
     if (controls) {
       const currentCameraViewSnapshot = getCameraViewSnapshot(
-        getCameraViewFromPosition(camera, controls.target),
+        getCameraViewFromPosition(
+          camera,
+          controls.target,
+          lastPublishedCameraViewRef.current.azimuth,
+        ),
       );
 
       if (currentCameraViewSnapshot !== nextCameraViewSnapshot) {
@@ -534,8 +539,6 @@ function BoardSceneCameraRig({
       setCameraPosition(camera, cameraX, cameraY, cameraZ);
       camera.lookAt(cameraTarget);
     }
-
-    lastCameraViewSnapshotRef.current = nextCameraViewSnapshot;
     publishProjectedSquarePositions({
       camera,
       lastSquareScreenPositionsRef,
@@ -560,13 +563,18 @@ function BoardSceneCameraRig({
       return;
     }
 
-    const nextCameraView = getCameraViewFromPosition(camera, controls.target);
+    const nextCameraView = getCameraViewFromPosition(
+      camera,
+      controls.target,
+      lastPublishedCameraViewRef.current.azimuth,
+    );
     const nextCameraViewSnapshot = getCameraViewSnapshot(nextCameraView);
 
     if (nextCameraViewSnapshot === lastCameraViewSnapshotRef.current) {
       return;
     }
 
+    lastPublishedCameraViewRef.current = nextCameraView;
     lastCameraViewSnapshotRef.current = nextCameraViewSnapshot;
     onCameraViewChange(nextCameraView);
   }
@@ -679,11 +687,11 @@ function getNextCameraView(
       return overheadCameraView;
     case 'rotate-left':
       return createCustomCameraView(currentCameraView, {
-        azimuth: normalizeAngle(currentCameraView.azimuth - cameraRotateStep),
+        azimuth: currentCameraView.azimuth - cameraRotateStep,
       });
     case 'rotate-right':
       return createCustomCameraView(currentCameraView, {
-        azimuth: normalizeAngle(currentCameraView.azimuth + cameraRotateStep),
+        azimuth: currentCameraView.azimuth + cameraRotateStep,
       });
     case 'tilt-up':
       return createCustomCameraView(currentCameraView, {
@@ -768,12 +776,14 @@ function applyCameraViewToControls(
 function getCameraViewFromPosition(
   camera: Camera,
   target: Vector3 = cameraTarget,
+  previousAzimuth = 0,
 ): BoardCameraView {
   const offsetVector = camera.position.clone().sub(target);
   const distance = clamp(offsetVector.length(), minCameraDistance, maxCameraDistance);
   const horizontalDistance = Math.hypot(offsetVector.x, offsetVector.z);
+  const wrappedAzimuth = Math.atan2(offsetVector.x, offsetVector.z);
   const normalizedCameraView = {
-    azimuth: normalizeAngle(Math.atan2(offsetVector.x, offsetVector.z)),
+    azimuth: unwrapAzimuth(previousAzimuth, wrappedAzimuth),
     distance: roundToTwoDecimals(distance),
     polar: roundToTwoDecimals(
       clamp(Math.atan2(horizontalDistance, offsetVector.y), minCameraPolar, maxCameraPolar),
@@ -821,7 +831,7 @@ function areCameraViewsEqual(
 }
 
 function getCameraViewSnapshot(cameraView: BoardCameraView): string {
-  return `${cameraView.viewMode}:${roundToTwoDecimals(normalizeAngle(cameraView.azimuth))}:${roundToTwoDecimals(cameraView.distance)}:${roundToTwoDecimals(cameraView.polar)}`;
+  return `${cameraView.viewMode}:${roundToTwoDecimals(cameraView.azimuth)}:${roundToTwoDecimals(cameraView.distance)}:${roundToTwoDecimals(cameraView.polar)}`;
 }
 
 function setHitTargetPointerEvents(
@@ -893,12 +903,20 @@ function normalizeAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
+function unwrapAzimuth(previousAzimuth: number, wrappedAzimuth: number): number {
+  const previousWrappedAzimuth = normalizeAngle(previousAzimuth);
+  const azimuthDelta = normalizeAngle(wrappedAzimuth - previousWrappedAzimuth);
+
+  return roundToTwoDecimals(previousAzimuth + azimuthDelta);
+}
+
 function setCameraPosition(
   camera: Camera,
   cameraX: number,
   cameraY: number,
   cameraZ: number,
 ) {
+  camera.up.set(0, 1, 0);
   camera.position.set(cameraX, cameraY, cameraZ);
 }
 
@@ -1027,9 +1045,7 @@ function projectBoardPositionToScreen({
   y: number;
   z: number;
 }): BoardSquareScreenPosition {
-  const projectedVector = new Vector3(x, y, z)
-    .applyMatrix4(boardRotationMatrix)
-    .project(camera);
+  const projectedVector = new Vector3(x, y, z).project(camera);
   const screenX = roundToTwoDecimals(
     (projectedVector.x * 0.5 + 0.5) * size.width,
   );
