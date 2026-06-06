@@ -26,21 +26,23 @@ export const boardGeometry = {
   frameRailThickness: 0.74,
   innerTrimHeight: 0.08,
   innerTrimThickness: 0.14,
-  legalMarkerHeight: 0.032,
-  legalMarkerRadius: 0.18,
-  legalMarkerRingRadius: 0.28,
-  legalMarkerRingTube: 0.032,
-  markerLift: 0.018,
+  legalMarkerHeight: 0.048,
+  legalMarkerRadius: 0.22,
+  legalMarkerRingRadius: 0.34,
+  legalMarkerRingTube: 0.04,
+  markerLift: 0.04,
   plinthHeight: 0.24,
-  selectedFrameDepth: 0.022,
-  selectedFrameThickness: 0.1,
+  selectedFrameDepth: 0.038,
+  selectedFrameThickness: 0.12,
   squareAccentHeight: 0.014,
   squareAccentInset: 0.22,
   squareAccentLength: 0.52,
   squareAccentWidth: 0.1,
+  squareFieldHeight: 0.056,
+  squareFieldScale: 0.94,
   squareHeight: 0.18,
   squareInsetHeight: 0.032,
-  squareInsetScale: 0.84,
+  squareInsetScale: 0.8,
   squareSize: 1,
   squareSurfaceY: 0.09,
 } as const;
@@ -54,11 +56,11 @@ export const boardVisualContract = {
 } as const;
 
 export const boardInteractionPalette = {
-  legalMarkerColor: '#648d57',
-  legalMarkerCoreColor: '#d9f2bf',
-  legalMarkerRingColor: '#577b4d',
-  selectedBorderColor: '#23150a',
-  selectedGlowColor: '#b98628',
+  legalMarkerColor: '#5e874f',
+  legalMarkerCoreColor: '#eef8cf',
+  legalMarkerRingColor: '#5b8c4e',
+  selectedBorderColor: '#2a180a',
+  selectedGlowColor: '#f2cf83',
 } as const;
 
 export const boardFramePalette = {

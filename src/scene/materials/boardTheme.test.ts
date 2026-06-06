@@ -137,4 +137,14 @@ describe('boardTheme', () => {
       ),
     ).toBeGreaterThan(1.4);
   });
+
+  it('uses marker geometry that stays readable above the richer board surface', () => {
+    expect(boardGeometry.markerLift).toBeGreaterThanOrEqual(0.03);
+    expect(boardGeometry.selectedFrameDepth).toBeGreaterThanOrEqual(0.03);
+    expect(boardGeometry.legalMarkerHeight).toBeGreaterThanOrEqual(0.04);
+    expect(boardGeometry.legalMarkerRadius).toBeGreaterThanOrEqual(0.2);
+    expect(boardGeometry.legalMarkerRingRadius).toBeGreaterThan(
+      boardGeometry.legalMarkerRadius,
+    );
+  });
 });

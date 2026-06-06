@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
-import { type Camera, MOUSE, TOUCH, Vector3 } from 'three';
+import { DoubleSide, type Camera, MOUSE, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   startTransition,
@@ -159,6 +159,7 @@ function DefaultBoardSceneCanvas({
     <Canvas
       camera={{ position: [cameraX, cameraY, cameraZ], fov: 42 }}
       className={className}
+      gl={{ alpha: false }}
       shadows
     >
       <BoardSceneCameraRig
@@ -286,6 +287,7 @@ export function BoardScene({
           }}
         >
           <color args={['#0f151c']} attach="background" />
+          <fog args={['#0b1017', 13, 26]} attach="fog" />
           <ambientLight color="#d6c1a0" intensity={0.38} />
           <hemisphereLight
             args={['#f5ebd7', '#0a0f17', 1.08]}
@@ -305,6 +307,7 @@ export function BoardScene({
             position={[-7, 6, -5]}
           />
           <group>
+            <SceneBackdrop />
             <BoardFrame />
             {boardSquares.map((boardSquare) => {
               const squareFinish = getBoardSquareFinish(boardSquare);
@@ -326,6 +329,29 @@ export function BoardScene({
                       color={squareFinish.edgeColor}
                       metalness={0.08}
                       roughness={0.72}
+                    />
+                  </mesh>
+                  <mesh
+                    castShadow
+                    position={[
+                      0,
+                      boardSquareSurfaceY -
+                        boardGeometry.squareFieldHeight / 2,
+                      0,
+                    ]}
+                    receiveShadow
+                  >
+                    <boxGeometry
+                      args={[
+                        boardGeometry.squareFieldScale,
+                        boardGeometry.squareFieldHeight,
+                        boardGeometry.squareFieldScale,
+                      ]}
+                    />
+                    <meshStandardMaterial
+                      color={squareFinish.baseColor}
+                      metalness={0.1}
+                      roughness={0.6}
                     />
                   </mesh>
                   <mesh
@@ -616,6 +642,25 @@ export function BoardScene({
         />
       </div>
     </section>
+  );
+}
+
+function SceneBackdrop() {
+  return (
+    <>
+      <mesh
+        position={[0, -0.34, 0]}
+        receiveShadow
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <circleGeometry args={[11.5, 64]} />
+        <meshStandardMaterial color="#101720" roughness={0.94} />
+      </mesh>
+      <mesh position={[0, 4.8, -9.2]}>
+        <planeGeometry args={[24, 16]} />
+        <meshBasicMaterial color="#0c1118" side={DoubleSide} />
+      </mesh>
+    </>
   );
 }
 
