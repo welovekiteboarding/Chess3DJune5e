@@ -72,8 +72,22 @@ async function getCameraMetrics(cameraState: Locator) {
   };
 }
 
-async function clickRenderedSquare(squareHitTarget: Locator) {
-  await expect(squareHitTarget).toBeAttached();
+async function clickRenderedSquare(page: Page, square: string) {
+  const squareButton = page.locator(getSquareButton(square));
+  const squareHitTarget = page.getByTestId(`board-hit-target-${square}`);
+
+  await expect
+    .poll(
+      async () => ({
+        hitTargetCount: await squareHitTarget.count(),
+        visible: await squareButton.getAttribute('data-screen-visible'),
+      }),
+      { timeout: 15_000 },
+    )
+    .toEqual({
+      hitTargetCount: 1,
+      visible: 'true',
+    });
   await squareHitTarget.dispatchEvent('click');
 }
 
@@ -252,16 +266,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   const e4Square = page.locator(getSquareButton('e4'));
   const f3Square = page.locator(getSquareButton('f3'));
   const g1Square = page.locator(getSquareButton('g1'));
-  const f3HitTarget = page.getByTestId('board-hit-target-f3');
-  const e2HitTarget = page.getByTestId('board-hit-target-e2');
-  const e4HitTarget = page.getByTestId('board-hit-target-e4');
-  const g1HitTarget = page.getByTestId('board-hit-target-g1');
-
   await expect(page.getByTestId('board-scene-hit-target-overlay')).toBeVisible();
-  await expect(e2HitTarget).toBeVisible();
-  await expect(e4HitTarget).toBeVisible();
-  await expect(g1HitTarget).toBeVisible();
-  await expect(f3HitTarget).toBeVisible();
   await expect(
     page.getByRole('heading', { level: 2, name: 'Command deck' }),
   ).toBeVisible();
@@ -387,7 +392,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   expect(resetE2Position.visible).toBe(true);
   expect(resetE4Position.visible).toBe(true);
 
-  await clickRenderedSquare(e2HitTarget);
+  await clickRenderedSquare(page, 'e2');
 
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
@@ -401,7 +406,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     'flat-dot',
   );
 
-  await clickRenderedSquare(e4HitTarget);
+  await clickRenderedSquare(page, 'e4');
   await waitForPieceAnimationToSettle(
     page.getByTestId('board-piece-white-pawn-e4'),
   );
@@ -445,11 +450,11 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await clickCameraButton(page, 'Zoom out');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
 
-  await clickRenderedSquare(g1HitTarget);
+  await clickRenderedSquare(page, 'g1');
   await expect(g1Square).toHaveAttribute('aria-pressed', 'true');
   await expect(f3Square).toHaveAttribute('data-legal-destination', 'true');
 
-  await clickRenderedSquare(f3HitTarget);
+  await clickRenderedSquare(page, 'f3');
   await waitForPieceAnimationToSettle(
     page.getByTestId('board-piece-white-knight-f3'),
   );

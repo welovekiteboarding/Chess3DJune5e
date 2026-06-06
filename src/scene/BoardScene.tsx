@@ -3,7 +3,6 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { DoubleSide, type Camera, MOUSE, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
-  startTransition,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -189,6 +188,9 @@ const interactionHitTargetStyle = {
   padding: 0,
   margin: 0,
 } as const;
+const interactionHitTargetMinSizePx = 18;
+const interactionHitTargetMaxSizePx = 72;
+const interactionHitTargetViewportMarginPx = interactionHitTargetMaxSizePx / 2;
 const cameraTarget = new Vector3(0, 0, 0);
 
 function DefaultBoardSceneCanvas({
@@ -421,22 +423,18 @@ export function BoardScene({
           cameraView={cameraView}
           className="board-scene-canvas"
           onCameraTelemetryChange={(nextCameraTelemetry) => {
-            startTransition(() => {
-              setCameraTelemetry((currentCameraTelemetry) =>
-                areCameraTelemetryEqual(
-                  currentCameraTelemetry,
-                  nextCameraTelemetry,
-                )
-                  ? currentCameraTelemetry
-                  : nextCameraTelemetry,
-              );
-            });
+            setCameraTelemetry((currentCameraTelemetry) =>
+              areCameraTelemetryEqual(
+                currentCameraTelemetry,
+                nextCameraTelemetry,
+              )
+                ? currentCameraTelemetry
+                : nextCameraTelemetry,
+            );
           }}
           onCameraViewChange={handleCameraViewChange}
           onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
-            startTransition(() => {
-              setSquareScreenPositions(nextSquareScreenPositions);
-            });
+            setSquareScreenPositions(nextSquareScreenPositions);
           }}
         >
           <SceneLighting />
@@ -2087,7 +2085,11 @@ function getInteractionHitTargetStyle(
       null,
     );
   const targetSize = roundToNearestPixel(
-    clamp((closestNeighborDistance ?? 42) * 0.72, 18, 72),
+    clamp(
+      (closestNeighborDistance ?? 42) * 0.72,
+      interactionHitTargetMinSizePx,
+      interactionHitTargetMaxSizePx,
+    ),
   );
 
   return {
@@ -2244,10 +2246,10 @@ function projectBoardPositionToScreen({
     visible:
       projectedVector.z >= -1 &&
       projectedVector.z <= 1 &&
-      screenX >= 0 &&
-      screenX <= size.width &&
-      screenY >= 0 &&
-      screenY <= size.height,
+      screenX >= -interactionHitTargetViewportMarginPx &&
+      screenX <= size.width + interactionHitTargetViewportMarginPx &&
+      screenY >= -interactionHitTargetViewportMarginPx &&
+      screenY <= size.height + interactionHitTargetViewportMarginPx,
     x: screenX,
     y: screenY,
   };
