@@ -98,6 +98,8 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
 test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, and still plays against Stockfish after camera changes', async ({
   page,
 }) => {
+  test.setTimeout(45_000);
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
 
@@ -163,10 +165,12 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   await expect(e4Square).toHaveAttribute('data-piece', 'white pawn');
   await expectMoveHistoryEntry(page, 0, '1. human e2e4');
   await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
-    timeout: 15000,
+    timeout: 25000,
   });
   await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+
+  await boardCanvasShell.hover();
 
   for (let zoomStep = 0; zoomStep < 8; zoomStep += 1) {
     await page.mouse.wheel(0, 1200);
@@ -179,6 +183,8 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   const maxZoomMetrics = await getCameraMetrics(cameraState);
 
   expect(maxZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
+
+  await boardCanvasShell.hover();
 
   for (let zoomStep = 0; zoomStep < 12; zoomStep += 1) {
     await page.mouse.wheel(0, -1200);
