@@ -30,12 +30,23 @@ describe('GamePanel', () => {
     expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
     expect(screen.getByText('Human side: White')).toBeInTheDocument();
     expect(screen.getByText('AI side: Black')).toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-details')).toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-controls')).toBeInTheDocument();
     expect(screen.getByText('1. e4 e5')).toBeInTheDocument();
     expect(screen.getByText('2. Nf3 Nc6')).toBeInTheDocument();
     expect(
       screen.getByText('Latest error: Engine lost connection.'),
     ).toBeInTheDocument();
     expect(screen.getByTestId('move-history-scroll')).toBeInTheDocument();
+    expect(screen.getAllByTestId('move-history-item')).toHaveLength(2);
+    expect(screen.getAllByTestId('move-history-item')[0]).toHaveAttribute(
+      'data-move-index',
+      '0',
+    );
+    expect(screen.getAllByTestId('move-history-item')[1]).toHaveAttribute(
+      'data-move-value',
+      '2. Nf3 Nc6',
+    );
   });
 
   it('announces the latest engine error through an accessible alert region', () => {
