@@ -86,6 +86,18 @@ async function waitForPieceAnimationToSettle(piece: Locator) {
   });
 }
 
+async function waitForPieceAtSquareToSettle(
+  page: Page,
+  square: string,
+  color: 'white' | 'black',
+) {
+  await waitForPieceAnimationToSettle(
+    page.locator(
+      `[data-testid="board-piece"][data-square="${square}"][data-color="${color}"]`,
+    ),
+  );
+}
+
 async function waitForPieceAnimationsToComplete(
   page: Page,
   { expectMotion = false }: { expectMotion?: boolean } = {},
@@ -411,6 +423,9 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   const { from, to } = parseMoveSquares(aiMove!);
 
+  await waitForPieceAtSquareToSettle(page, to, 'black');
+  await waitForPieceAnimationsToComplete(page);
+
   await expect(page.locator(getSquareButton(from))).toHaveAttribute(
     'data-piece',
     'empty',
@@ -441,6 +456,23 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   });
   await expectMoveHistoryEntry(page, 3, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+
+  const secondAiMoveText = await page
+    .locator('[data-testid="move-history-item"][data-move-index="3"]')
+    .innerText();
+  const secondAiMoveMatch = secondAiMoveText.match(
+    /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/,
+  );
+
+  expect(secondAiMoveMatch).not.toBeNull();
+
+  const secondAiMove = secondAiMoveMatch?.[1];
+
+  expect(secondAiMove).toBeDefined();
+
+  const { to: secondAiDestination } = parseMoveSquares(secondAiMove!);
+
+  await waitForPieceAtSquareToSettle(page, secondAiDestination, 'black');
   await waitForPieceAnimationsToComplete(page);
 
   await clickCameraButton(page, 'Zoom out');
