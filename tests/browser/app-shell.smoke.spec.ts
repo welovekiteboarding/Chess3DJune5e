@@ -250,6 +250,14 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
   await expect(page.getByLabel('AI difficulty')).toBeVisible();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expect(page.getByTestId('board-lighting-contract')).toHaveAttribute(
+    'data-lighting-rig',
+    'studio-warm-key',
+  );
+  await expect(page.getByTestId('board-lighting-contract')).toHaveAttribute(
+    'data-shadow-style',
+    'soft-readable',
+  );
   await expect(e2Square).toHaveAttribute('data-piece', 'white pawn');
   await expect(e4Square).toHaveAttribute('data-piece', 'empty');
   await expect(page.getByTestId('board-piece-white-king-e1')).toHaveAttribute(

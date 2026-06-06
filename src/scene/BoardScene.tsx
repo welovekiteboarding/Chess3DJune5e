@@ -30,6 +30,7 @@ import {
   getBoardFrameSegmentFinish,
   getBoardSquareFinish,
 } from './materials';
+import { SceneLighting, sceneLightingContract } from './lighting';
 
 type BoardCameraViewMode = 'custom' | 'default' | 'overhead';
 
@@ -317,26 +318,7 @@ export function BoardScene({
             });
           }}
         >
-          <color args={['#0f151c']} attach="background" />
-          <fog args={['#0b1017', 13, 26]} attach="fog" />
-          <ambientLight color="#d6c1a0" intensity={0.38} />
-          <hemisphereLight
-            args={['#f5ebd7', '#0a0f17', 1.08]}
-            groundColor="#10161f"
-          />
-          <directionalLight
-            castShadow
-            color="#ffd7a0"
-            intensity={1.45}
-            position={[6, 10, 6]}
-            shadow-mapSize-height={1024}
-            shadow-mapSize-width={1024}
-          />
-          <directionalLight
-            color="#8ea7c4"
-            intensity={0.4}
-            position={[-7, 6, -5]}
-          />
+          <SceneLighting />
           <group>
             <SceneBackdrop />
             <BoardFrame />
@@ -727,6 +709,17 @@ export function BoardScene({
           }
           data-selected-marker-style={boardVisualContract.selectedMarkerStyleId}
           data-testid="board-visual-contract"
+        />
+        <div
+          data-ambient-fill-intensity={sceneLightingContract.ambientFill.intensity}
+          data-fill-light={sceneLightingContract.fillLight.id}
+          data-key-light={sceneLightingContract.keyLight.id}
+          data-key-shadow-map-size={sceneLightingContract.keyLight.shadow.mapSize}
+          data-lighting-rig={sceneLightingContract.rigId}
+          data-playability={sceneLightingContract.playability}
+          data-rim-light={sceneLightingContract.rimLight.id}
+          data-shadow-style={sceneLightingContract.shadowStyle}
+          data-testid="board-lighting-contract"
         />
       </div>
     </section>

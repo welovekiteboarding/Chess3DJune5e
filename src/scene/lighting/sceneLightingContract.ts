@@ -1,0 +1,51 @@
+export const sceneLightingContract = {
+  ambientFill: {
+    color: '#ddc9ab',
+    intensity: 0.44,
+    role: 'ambient-fill',
+  },
+  fillLight: {
+    color: '#9ab0c9',
+    id: 'cool-left-fill',
+    intensity: 0.48,
+    position: [-6.4, 5.8, 4.2] as const,
+    role: 'fill',
+  },
+  fog: {
+    color: '#0c1219',
+    far: 27,
+    near: 12,
+  },
+  hemisphereFill: {
+    groundColor: '#111820',
+    intensity: 0.88,
+    skyColor: '#f2e8d6',
+  },
+  keyLight: {
+    castShadow: true,
+    color: '#ffd9ab',
+    id: 'warm-front-right',
+    intensity: 1.52,
+    position: [7.6, 11.2, 6.4] as const,
+    role: 'key',
+    shadow: {
+      bias: -0.00018,
+      bounds: 6.4,
+      far: 24,
+      mapSize: 1536,
+      normalBias: 0.02,
+      radius: 3.2,
+    },
+  },
+  playability: 'default-overhead-readable',
+  backgroundColor: '#10161d',
+  rigId: 'studio-warm-key',
+  rimLight: {
+    color: '#b7c5ff',
+    id: 'cool-back-rim',
+    intensity: 0.34,
+    position: [-5.8, 4.6, -7.6] as const,
+    role: 'rim',
+  },
+  shadowStyle: 'soft-readable',
+} as const;
