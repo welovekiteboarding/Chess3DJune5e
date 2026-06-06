@@ -1572,10 +1572,6 @@ function getNormalMovePieceAnimation(
   previousPiecePlacements: readonly ChessPiecePlacement[],
   nextPiecePlacements: readonly ChessPiecePlacement[],
 ) {
-  if (previousPiecePlacements.length !== nextPiecePlacements.length) {
-    return null;
-  }
-
   const previousRenderIds = new Set(
     previousPiecePlacements.map(({ renderId }) => renderId),
   );
@@ -1587,14 +1583,23 @@ function getNormalMovePieceAnimation(
     ({ renderId }) => !previousRenderIds.has(renderId),
   );
 
-  if (removedPiecePlacements.length !== 1 || addedPiecePlacements.length !== 1) {
+  if (addedPiecePlacements.length !== 1) {
     return null;
   }
 
-  const [from] = removedPiecePlacements;
   const [to] = addedPiecePlacements;
+  const matchingRemovedPiecePlacements = removedPiecePlacements.filter(
+    (piecePlacement) =>
+      piecePlacement.color === to.color && piecePlacement.piece === to.piece,
+  );
 
-  if (from.color !== to.color || from.piece !== to.piece) {
+  if (matchingRemovedPiecePlacements.length !== 1) {
+    return null;
+  }
+
+  const [from] = matchingRemovedPiecePlacements;
+
+  if (from.square === to.square) {
     return null;
   }
 

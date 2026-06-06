@@ -619,6 +619,96 @@ describe('BoardScene', () => {
     }
   });
 
+  it('animates the moving piece during a capture while removing the captured piece immediately', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+            {
+              renderId: 'black-pawn-d5',
+              square: 'd5',
+              piece: 'pawn',
+              color: 'black',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-d5',
+              square: 'd5',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e4')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-d5')).toHaveAttribute(
+        'data-piece',
+        'white pawn',
+      );
+      expect(screen.queryByTestId('board-piece-black-pawn-d5')).not.toBeInTheDocument();
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-from-square',
+        'e4',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-to-square',
+        'd5',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-d5')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('publishes running move-transition metadata in the committed move render', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
