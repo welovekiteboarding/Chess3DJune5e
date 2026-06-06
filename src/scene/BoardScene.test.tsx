@@ -596,4 +596,39 @@ describe('BoardScene', () => {
       'brass-perimeter-highlight',
     );
   });
+
+  it('publishes a deliberate lighting contract that preserves readable play', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-lighting-rig',
+      'studio-warm-key',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-shadow-style',
+      'soft-readable',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-key-light',
+      'warm-front-right',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-fill-light',
+      'cool-left-fill',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-rim-light',
+      'cool-back-rim',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-playability',
+      'default-overhead-readable',
+    );
+  });
 });
