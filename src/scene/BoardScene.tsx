@@ -23,6 +23,14 @@ import {
   pieceGroundingConvention,
   pieceMarkerByType,
 } from './pieces';
+import {
+  boardFramePalette,
+  boardGeometry,
+  boardInteractionPalette,
+  boardVisualContract,
+  getBoardFrameSegmentFinish,
+  getBoardSquareFinish,
+} from './materials';
 
 type BoardCameraViewMode = 'custom' | 'default' | 'overhead';
 
@@ -78,10 +86,10 @@ type BoardSquareScreenPositions = Partial<
 >;
 
 const boardSquares = createBoardSquares();
-const squareSize = 1;
-const boardSquareHeight = 0.18;
-const boardHalfSpan = 3.5;
-const boardSquareSurfaceY = boardSquareHeight / 2;
+const squareSize = boardGeometry.squareSize;
+const boardSquareHeight = boardGeometry.squareHeight;
+const boardHalfSpan = boardGeometry.boardHalfSpan;
+const boardSquareSurfaceY = boardGeometry.squareSurfaceY;
 const minCameraDistance = 3.6;
 const maxCameraDistance = 24;
 const minCameraPolar = 0.1;
@@ -277,41 +285,114 @@ export function BoardScene({
             });
           }}
         >
-          <color args={['#e8ecf4']} attach="background" />
-          <ambientLight intensity={0.8} />
+          <color args={['#0f151c']} attach="background" />
+          <ambientLight color="#d6c1a0" intensity={0.38} />
+          <hemisphereLight
+            args={['#f5ebd7', '#0a0f17', 1.08]}
+            groundColor="#10161f"
+          />
           <directionalLight
             castShadow
-            intensity={1.1}
-            position={[6, 10, 8]}
+            color="#ffd7a0"
+            intensity={1.45}
+            position={[6, 10, 6]}
             shadow-mapSize-height={1024}
             shadow-mapSize-width={1024}
           />
+          <directionalLight
+            color="#8ea7c4"
+            intensity={0.4}
+            position={[-7, 6, -5]}
+          />
           <group>
-            <mesh position={[0, -0.12, 0]} receiveShadow>
-              <boxGeometry args={[8.8, 0.2, 8.8]} />
-              <meshStandardMaterial color="#3b2f2a" />
-            </mesh>
+            <BoardFrame />
             {boardSquares.map((boardSquare) => {
-              const materialColor = getSquareColor({
-                boardSquare,
-                legalDestinationSet,
-                selectedSquare,
-              });
+              const squareFinish = getBoardSquareFinish(boardSquare);
               const [x, z] = getSquarePosition(boardSquare);
+              const isSelected = boardSquare.square === selectedSquare;
+              const isLegalDestination = legalDestinationSet.has(boardSquare.square);
 
               return (
-                <mesh
-                  castShadow
+                <group
                   key={boardSquare.square}
                   onClick={(event) =>
                     handleSceneSquareClick(event, boardSquare.square, onSquareSelect)
                   }
                   position={[x, 0, z]}
-                  receiveShadow
                 >
-                  <boxGeometry args={[squareSize, boardSquareHeight, squareSize]} />
-                  <meshStandardMaterial color={materialColor} />
-                </mesh>
+                  <mesh castShadow receiveShadow>
+                    <boxGeometry args={[squareSize, boardSquareHeight, squareSize]} />
+                    <meshStandardMaterial
+                      color={squareFinish.edgeColor}
+                      metalness={0.08}
+                      roughness={0.72}
+                    />
+                  </mesh>
+                  <mesh
+                    castShadow
+                    position={[
+                      0,
+                      boardSquareSurfaceY - boardGeometry.squareInsetHeight / 2,
+                      0,
+                    ]}
+                    receiveShadow
+                  >
+                    <boxGeometry
+                      args={[
+                        boardGeometry.squareInsetScale,
+                        boardGeometry.squareInsetHeight,
+                        boardGeometry.squareInsetScale,
+                      ]}
+                    />
+                    <meshStandardMaterial
+                      color={squareFinish.insetColor}
+                      metalness={squareFinish.metalness}
+                      roughness={squareFinish.roughness}
+                    />
+                  </mesh>
+                  <mesh
+                    castShadow
+                    position={
+                      squareFinish.accentAxis === 'file'
+                        ? [
+                            0,
+                            boardSquareSurfaceY -
+                              boardGeometry.squareAccentHeight / 2,
+                            squareFinish.accentOffset,
+                          ]
+                        : [
+                            squareFinish.accentOffset,
+                            boardSquareSurfaceY -
+                              boardGeometry.squareAccentHeight / 2,
+                            0,
+                          ]
+                    }
+                    receiveShadow
+                  >
+                    <boxGeometry
+                      args={
+                        squareFinish.accentAxis === 'file'
+                          ? [
+                              boardGeometry.squareAccentLength,
+                              boardGeometry.squareAccentHeight,
+                              boardGeometry.squareAccentWidth,
+                            ]
+                          : [
+                              boardGeometry.squareAccentWidth,
+                              boardGeometry.squareAccentHeight,
+                              boardGeometry.squareAccentLength,
+                            ]
+                      }
+                    />
+                    <meshStandardMaterial
+                      color={squareFinish.accentColor}
+                      metalness={0.12}
+                      roughness={0.48}
+                    />
+                  </mesh>
+                  {isSelected ? <SelectedSquareFrame /> : null}
+                  {isLegalDestination ? <LegalDestinationMarker /> : null}
+                </group>
               );
             })}
             {piecePlacements.map((piecePlacement) => {
@@ -525,8 +606,349 @@ export function BoardScene({
             </li>
           ))}
         </ul>
+        <div
+          data-dark-square-material={boardVisualContract.darkSquareMaterialId}
+          data-frame-style={boardVisualContract.frameStyleId}
+          data-legal-marker-style={boardVisualContract.legalMarkerStyleId}
+          data-light-square-material={boardVisualContract.lightSquareMaterialId}
+          data-selected-marker-style={boardVisualContract.selectedMarkerStyleId}
+          data-testid="board-visual-contract"
+        />
       </div>
     </section>
+  );
+}
+
+function BoardFrame() {
+  const playableHalfExtent = boardHalfSpan + squareSize / 2;
+  const frameOuterSpan = boardGeometry.boardSpan + boardGeometry.frameOverhang * 2;
+  const sideRailLength = boardGeometry.boardSpan;
+  const frameRailY = (boardGeometry.frameRailHeight - boardSquareHeight) / 2;
+  const plinthY = -boardGeometry.plinthHeight / 2 - 0.08;
+  const innerTrimY = boardSquareSurfaceY - boardGeometry.innerTrimHeight / 2;
+  const frameSegments = [
+    {
+      args: [
+        frameOuterSpan,
+        boardGeometry.frameRailHeight,
+        boardGeometry.frameRailThickness,
+      ] as [number, number, number],
+      position: [
+        0,
+        frameRailY,
+        playableHalfExtent + boardGeometry.frameRailThickness / 2,
+      ] as [number, number, number],
+    },
+    {
+      args: [
+        frameOuterSpan,
+        boardGeometry.frameRailHeight,
+        boardGeometry.frameRailThickness,
+      ] as [number, number, number],
+      position: [
+        0,
+        frameRailY,
+        -(playableHalfExtent + boardGeometry.frameRailThickness / 2),
+      ] as [number, number, number],
+    },
+    {
+      args: [
+        boardGeometry.frameRailThickness,
+        boardGeometry.frameRailHeight,
+        sideRailLength,
+      ] as [number, number, number],
+      position: [
+        playableHalfExtent + boardGeometry.frameRailThickness / 2,
+        frameRailY,
+        0,
+      ] as [number, number, number],
+    },
+    {
+      args: [
+        boardGeometry.frameRailThickness,
+        boardGeometry.frameRailHeight,
+        sideRailLength,
+      ] as [number, number, number],
+      position: [
+        -(playableHalfExtent + boardGeometry.frameRailThickness / 2),
+        frameRailY,
+        0,
+      ] as [number, number, number],
+    },
+  ];
+  const frameCorners = [
+    [1, 1],
+    [1, -1],
+    [-1, 1],
+    [-1, -1],
+  ] as const;
+
+  return (
+    <>
+      <mesh position={[0, plinthY, 0]} receiveShadow>
+        <boxGeometry
+          args={[
+            frameOuterSpan + 0.36,
+            boardGeometry.plinthHeight,
+            frameOuterSpan + 0.36,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardFramePalette.plinthColor}
+          metalness={0.12}
+          roughness={0.86}
+        />
+      </mesh>
+      <mesh position={[0, plinthY + 0.02, 0]} receiveShadow>
+        <boxGeometry
+          args={[
+            frameOuterSpan + 0.1,
+            boardGeometry.plinthHeight * 0.42,
+            frameOuterSpan + 0.1,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardFramePalette.plinthEdgeColor}
+          metalness={0.1}
+          roughness={0.74}
+        />
+      </mesh>
+      {frameSegments.map((segment, segmentIndex) => {
+        const frameFinish = getBoardFrameSegmentFinish(segmentIndex);
+
+        return (
+          <group key={`frame-segment-${segmentIndex}`} position={segment.position}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={segment.args} />
+              <meshStandardMaterial
+                color={frameFinish.color}
+                metalness={frameFinish.metalness}
+                roughness={frameFinish.roughness}
+              />
+            </mesh>
+            <mesh
+              position={[0, boardGeometry.frameRailHeight * 0.16, 0]}
+              receiveShadow
+            >
+              <boxGeometry
+                args={[
+                  segment.args[0] * (segmentIndex < 2 ? 0.92 : 0.78),
+                  boardGeometry.frameRailHeight * 0.22,
+                  segment.args[2] * (segmentIndex < 2 ? 0.34 : 0.78),
+                ]}
+              />
+              <meshStandardMaterial
+                color={frameFinish.highlightColor}
+                metalness={0.18}
+                roughness={0.42}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+      {frameCorners.map(([xDirection, zDirection], cornerIndex) => (
+        <mesh
+          castShadow
+          key={`frame-corner-${cornerIndex}`}
+          position={[
+            xDirection *
+              (playableHalfExtent + boardGeometry.frameRailThickness / 2),
+            frameRailY,
+            zDirection *
+              (playableHalfExtent + boardGeometry.frameRailThickness / 2),
+          ]}
+          receiveShadow
+        >
+          <boxGeometry
+            args={[
+              boardGeometry.frameCornerSize,
+              boardGeometry.frameRailHeight,
+              boardGeometry.frameCornerSize,
+            ]}
+          />
+          <meshStandardMaterial
+            color={boardFramePalette.railHighlightColor}
+            metalness={0.14}
+            roughness={0.46}
+          />
+        </mesh>
+      ))}
+      <mesh position={[0, innerTrimY, playableHalfExtent + boardGeometry.innerTrimThickness / 2]}>
+        <boxGeometry
+          args={[
+            boardGeometry.boardSpan,
+            boardGeometry.innerTrimHeight,
+            boardGeometry.innerTrimThickness,
+          ]}
+        />
+        <meshStandardMaterial color={boardFramePalette.innerTrimColor} roughness={0.58} />
+      </mesh>
+      <mesh position={[0, innerTrimY, -(playableHalfExtent + boardGeometry.innerTrimThickness / 2)]}>
+        <boxGeometry
+          args={[
+            boardGeometry.boardSpan,
+            boardGeometry.innerTrimHeight,
+            boardGeometry.innerTrimThickness,
+          ]}
+        />
+        <meshStandardMaterial color={boardFramePalette.innerTrimColor} roughness={0.58} />
+      </mesh>
+      <mesh position={[playableHalfExtent + boardGeometry.innerTrimThickness / 2, innerTrimY, 0]}>
+        <boxGeometry
+          args={[
+            boardGeometry.innerTrimThickness,
+            boardGeometry.innerTrimHeight,
+            boardGeometry.boardSpan,
+          ]}
+        />
+        <meshStandardMaterial color={boardFramePalette.innerTrimColor} roughness={0.58} />
+      </mesh>
+      <mesh position={[-(playableHalfExtent + boardGeometry.innerTrimThickness / 2), innerTrimY, 0]}>
+        <boxGeometry
+          args={[
+            boardGeometry.innerTrimThickness,
+            boardGeometry.innerTrimHeight,
+            boardGeometry.boardSpan,
+          ]}
+        />
+        <meshStandardMaterial color={boardFramePalette.innerTrimColor} roughness={0.58} />
+      </mesh>
+    </>
+  );
+}
+
+function SelectedSquareFrame() {
+  const offset = squareSize / 2 - boardGeometry.selectedFrameThickness / 2;
+  const markerY = boardSquareSurfaceY + boardGeometry.markerLift;
+
+  return (
+    <>
+      <mesh position={[0, markerY, offset]}>
+        <boxGeometry
+          args={[
+            squareSize,
+            boardGeometry.selectedFrameDepth,
+            boardGeometry.selectedFrameThickness,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.selectedBorderColor}
+          emissive={boardInteractionPalette.selectedGlowColor}
+          emissiveIntensity={0.42}
+          metalness={0.2}
+          roughness={0.34}
+        />
+      </mesh>
+      <mesh position={[0, markerY, -offset]}>
+        <boxGeometry
+          args={[
+            squareSize,
+            boardGeometry.selectedFrameDepth,
+            boardGeometry.selectedFrameThickness,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.selectedBorderColor}
+          emissive={boardInteractionPalette.selectedGlowColor}
+          emissiveIntensity={0.42}
+          metalness={0.2}
+          roughness={0.34}
+        />
+      </mesh>
+      <mesh position={[offset, markerY, 0]}>
+        <boxGeometry
+          args={[
+            boardGeometry.selectedFrameThickness,
+            boardGeometry.selectedFrameDepth,
+            squareSize - boardGeometry.selectedFrameThickness * 2,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.selectedBorderColor}
+          emissive={boardInteractionPalette.selectedGlowColor}
+          emissiveIntensity={0.42}
+          metalness={0.2}
+          roughness={0.34}
+        />
+      </mesh>
+      <mesh position={[-offset, markerY, 0]}>
+        <boxGeometry
+          args={[
+            boardGeometry.selectedFrameThickness,
+            boardGeometry.selectedFrameDepth,
+            squareSize - boardGeometry.selectedFrameThickness * 2,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.selectedBorderColor}
+          emissive={boardInteractionPalette.selectedGlowColor}
+          emissiveIntensity={0.42}
+          metalness={0.2}
+          roughness={0.34}
+        />
+      </mesh>
+    </>
+  );
+}
+
+function LegalDestinationMarker() {
+  const markerY =
+    boardSquareSurfaceY + boardGeometry.markerLift + boardGeometry.legalMarkerHeight / 2;
+
+  return (
+    <>
+      <mesh position={[0, markerY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry
+          args={[
+            boardGeometry.legalMarkerRingRadius,
+            boardGeometry.legalMarkerRingTube,
+            20,
+            48,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.legalMarkerRingColor}
+          emissive={boardInteractionPalette.legalMarkerRingColor}
+          emissiveIntensity={0.18}
+          metalness={0.12}
+          roughness={0.52}
+        />
+      </mesh>
+      <mesh position={[0, markerY, 0]}>
+        <cylinderGeometry
+          args={[
+            boardGeometry.legalMarkerRadius,
+            boardGeometry.legalMarkerRadius,
+            boardGeometry.legalMarkerHeight,
+            32,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.legalMarkerColor}
+          emissive={boardInteractionPalette.legalMarkerColor}
+          emissiveIntensity={0.28}
+          metalness={0.08}
+          roughness={0.38}
+        />
+      </mesh>
+      <mesh position={[0, markerY + boardGeometry.legalMarkerHeight * 0.18, 0]}>
+        <cylinderGeometry
+          args={[
+            boardGeometry.legalMarkerRadius * 0.52,
+            boardGeometry.legalMarkerRadius * 0.58,
+            boardGeometry.legalMarkerHeight * 0.56,
+            24,
+          ]}
+        />
+        <meshStandardMaterial
+          color={boardInteractionPalette.legalMarkerCoreColor}
+          emissive={boardInteractionPalette.legalMarkerCoreColor}
+          emissiveIntensity={0.22}
+          metalness={0.12}
+          roughness={0.26}
+        />
+      </mesh>
+    </>
   );
 }
 
@@ -706,26 +1128,6 @@ function getGroundedPiecePlacementY() {
 
 function formatGroundingValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
-
-function getSquareColor({
-  boardSquare,
-  legalDestinationSet,
-  selectedSquare,
-}: {
-  boardSquare: BoardSquareDefinition;
-  legalDestinationSet: ReadonlySet<ChessSquare>;
-  selectedSquare: ChessSquare | null;
-}) {
-  if (boardSquare.square === selectedSquare) {
-    return '#d7a83f';
-  }
-
-  if (legalDestinationSet.has(boardSquare.square)) {
-    return '#79b46a';
-  }
-
-  return boardSquare.isDark ? '#7a5a46' : '#efe6d6';
 }
 
 function handleSceneSquareClick(

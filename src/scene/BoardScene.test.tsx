@@ -483,4 +483,35 @@ describe('BoardScene', () => {
     expect(screen.queryByTestId('legal-destination-square-e3')).not.toBeInTheDocument();
     expect(screen.queryByTestId('legal-destination-square-e4')).not.toBeInTheDocument();
   });
+
+  it('publishes the upgraded board visual contract for non-visual regression checks', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-frame-style',
+      'walnut-bevel-frame',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-light-square-material',
+      'maple-stone-inlay',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-dark-square-material',
+      'walnut-slate-inlay',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-legal-marker-style',
+      'glass-dot-marker',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-selected-marker-style',
+      'brass-perimeter-highlight',
+    );
+  });
 });
