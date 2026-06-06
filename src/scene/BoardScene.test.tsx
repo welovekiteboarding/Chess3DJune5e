@@ -709,6 +709,129 @@ describe('BoardScene', () => {
     }
   });
 
+  it('animates both king and rook during castling moves', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-king-e1',
+              square: 'e1',
+              piece: 'king',
+              color: 'white',
+            },
+            {
+              renderId: 'white-rook-h1',
+              square: 'h1',
+              piece: 'rook',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-king-g1',
+              square: 'g1',
+              piece: 'king',
+              color: 'white',
+            },
+            {
+              renderId: 'white-rook-f1',
+              square: 'f1',
+              piece: 'rook',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e1')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-h1')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-g1')).toHaveAttribute(
+        'data-piece',
+        'white king',
+      );
+      expect(screen.getByTestId('board-square-f1')).toHaveAttribute(
+        'data-piece',
+        'white rook',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-from-square',
+        'e1',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-to-square',
+        'g1',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-from-square',
+        'h1',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-to-square',
+        'f1',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '2',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-king-g1')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-white-rook-f1')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('publishes running move-transition metadata in the committed move render', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

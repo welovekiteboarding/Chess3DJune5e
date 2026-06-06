@@ -313,12 +313,12 @@ export function BoardScene({
       return;
     }
 
-    const movedPieceAnimation = getNormalMovePieceAnimation(
+    const movedPieceAnimations = getNormalMovePieceAnimations(
       previousPiecePlacements,
       piecePlacements,
     );
 
-    if (!movedPieceAnimation) {
+    if (movedPieceAnimations.length === 0) {
       syncPieceAnimationFrame({
         activePieceAnimationsRef,
         isMountedRef,
@@ -330,14 +330,18 @@ export function BoardScene({
       return;
     }
 
-    activePieceAnimationsRef.current[movedPieceAnimation.to.renderId] = {
-      durationMs: pieceMoveAnimationDurationMs,
-      fromPosition: getPiecePosition(movedPieceAnimation.from.square),
-      fromSquare: movedPieceAnimation.from.square,
-      startedAtMs: getAnimationTimestamp(),
-      toPosition: getPiecePosition(movedPieceAnimation.to.square),
-      toSquare: movedPieceAnimation.to.square,
-    };
+    const animationStartTimeMs = getAnimationTimestamp();
+
+    movedPieceAnimations.forEach((movedPieceAnimation) => {
+      activePieceAnimationsRef.current[movedPieceAnimation.to.renderId] = {
+        durationMs: pieceMoveAnimationDurationMs,
+        fromPosition: getPiecePosition(movedPieceAnimation.from.square),
+        fromSquare: movedPieceAnimation.from.square,
+        startedAtMs: animationStartTimeMs,
+        toPosition: getPiecePosition(movedPieceAnimation.to.square),
+        toSquare: movedPieceAnimation.to.square,
+      };
+    });
 
     syncPieceAnimationFrame({
       activePieceAnimationsRef,
@@ -1568,7 +1572,7 @@ function usePrefersReducedMotion() {
   return prefersReducedMotion;
 }
 
-function getNormalMovePieceAnimation(
+function getNormalMovePieceAnimations(
   previousPiecePlacements: readonly ChessPiecePlacement[],
   nextPiecePlacements: readonly ChessPiecePlacement[],
 ) {
@@ -1582,28 +1586,83 @@ function getNormalMovePieceAnimation(
   const addedPiecePlacements = nextPiecePlacements.filter(
     ({ renderId }) => !previousRenderIds.has(renderId),
   );
+  const unmatchedRemovedPiecePlacements = [...removedPiecePlacements];
+  const movedPieceAnimations: Array<{
+    from: ChessPiecePlacement;
+    to: ChessPiecePlacement;
+  }> = [];
+
+  addedPiecePlacements.forEach((to) => {
+    const fromPiecePlacement = getMatchingRemovedPiecePlacement({
+      addedPiecePlacement: to,
+      addedPiecePlacements,
+      unmatchedRemovedPiecePlacements,
+    });
+
+    if (!fromPiecePlacement || fromPiecePlacement.square === to.square) {
+      return;
+    }
+
+    movedPieceAnimations.push({
+      from: fromPiecePlacement,
+      to,
+    });
+  });
+
+  return movedPieceAnimations;
+}
+
+function getMatchingRemovedPiecePlacement({
+  addedPiecePlacement,
+  addedPiecePlacements,
+  unmatchedRemovedPiecePlacements,
+}: {
+  addedPiecePlacement: ChessPiecePlacement;
+  addedPiecePlacements: readonly ChessPiecePlacement[];
+  unmatchedRemovedPiecePlacements: ChessPiecePlacement[];
+}) {
+  const exactMatch = takeMatchingRemovedPiecePlacement(
+    unmatchedRemovedPiecePlacements,
+    (piecePlacement) =>
+      piecePlacement.color === addedPiecePlacement.color &&
+      piecePlacement.piece === addedPiecePlacement.piece,
+  );
+
+  if (exactMatch) {
+    return exactMatch;
+  }
 
   if (addedPiecePlacements.length !== 1) {
     return null;
   }
 
-  const [to] = addedPiecePlacements;
-  const matchingRemovedPiecePlacements = removedPiecePlacements.filter(
-    (piecePlacement) =>
-      piecePlacement.color === to.color && piecePlacement.piece === to.piece,
+  return takeMatchingRemovedPiecePlacement(
+    unmatchedRemovedPiecePlacements,
+    (piecePlacement) => piecePlacement.color === addedPiecePlacement.color,
+  );
+}
+
+function takeMatchingRemovedPiecePlacement(
+  unmatchedRemovedPiecePlacements: ChessPiecePlacement[],
+  matchesPiecePlacement: (piecePlacement: ChessPiecePlacement) => boolean,
+) {
+  const matchingRemovedPiecePlacementIndexes = unmatchedRemovedPiecePlacements
+    .map((piecePlacement, index) =>
+      matchesPiecePlacement(piecePlacement) ? index : -1,
+    )
+    .filter((index) => index >= 0);
+
+  if (matchingRemovedPiecePlacementIndexes.length !== 1) {
+    return null;
+  }
+
+  const [matchingRemovedPiecePlacementIndex] = matchingRemovedPiecePlacementIndexes;
+  const [matchingRemovedPiecePlacement] = unmatchedRemovedPiecePlacements.splice(
+    matchingRemovedPiecePlacementIndex,
+    1,
   );
 
-  if (matchingRemovedPiecePlacements.length !== 1) {
-    return null;
-  }
-
-  const [from] = matchingRemovedPiecePlacements;
-
-  if (from.square === to.square) {
-    return null;
-  }
-
-  return { from, to };
+  return matchingRemovedPiecePlacement ?? null;
 }
 
 function getAnimationTimestamp() {
