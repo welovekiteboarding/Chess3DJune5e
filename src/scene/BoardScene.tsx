@@ -1,14 +1,18 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
-import { type Camera, Matrix4, MOUSE, Vector3 } from 'three';
+import { type Camera, Matrix4, MOUSE, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
+  startTransition,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type ComponentType,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PropsWithChildren,
+  type WheelEvent as ReactWheelEvent,
 } from 'react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
@@ -25,6 +29,7 @@ interface BoardCameraView {
 export interface BoardSceneCanvasProps extends PropsWithChildren {
   cameraView?: BoardCameraView;
   className?: string;
+  onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
   ) => void;
@@ -61,23 +66,28 @@ const squareSize = 1;
 const boardHalfSpan = 3.5;
 const boardRotationRadians = -0.72;
 const boardSquareSurfaceY = 0.11;
-const minCameraDistance = 6.6;
-const maxCameraDistance = 12.5;
-const minCameraPolar = 0.18;
-const maxCameraPolar = 1.24;
-const cameraRotateStep = Math.PI / 10;
-const cameraTiltStep = 0.14;
-const cameraZoomStep = 0.8;
+const minCameraDistance = 4.8;
+const maxCameraDistance = 16.8;
+const minCameraPolar = 0.1;
+const maxCameraPolar = 1.36;
+const cameraRotateStep = Math.PI / 8;
+const cameraTiltStep = 0.12;
+const cameraZoomStep = 1.1;
+const cameraViewModeTolerance = {
+  azimuth: 0.04,
+  distance: 0.12,
+  polar: 0.04,
+} as const;
 const defaultCameraView: BoardCameraView = {
   azimuth: 0,
-  distance: 9.92,
-  polar: 0.71,
+  distance: 10.4,
+  polar: 0.68,
   viewMode: 'default',
 };
 const overheadCameraView: BoardCameraView = {
   azimuth: 0,
-  distance: 8.4,
-  polar: 0.24,
+  distance: 8.8,
+  polar: 0.14,
   viewMode: 'overhead',
 };
 const fallbackOnlyStyle = {
@@ -109,11 +119,13 @@ const interactionHitTargetStyle = {
   margin: 0,
 } as const;
 const boardRotationMatrix = new Matrix4().makeRotationX(boardRotationRadians);
+const cameraTarget = new Vector3(0, 0, 0);
 
 function DefaultBoardSceneCanvas({
   cameraView = defaultCameraView,
   children,
   className,
+  onCameraViewChange,
   onSquareScreenPositionsChange,
 }: BoardSceneCanvasProps) {
   const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
@@ -126,6 +138,7 @@ function DefaultBoardSceneCanvas({
     >
       <BoardSceneCameraRig
         cameraView={cameraView}
+        onCameraViewChange={onCameraViewChange}
         onSquareScreenPositionsChange={onSquareScreenPositionsChange}
       />
       {children}
@@ -146,11 +159,56 @@ export function BoardScene({
   const [cameraView, setCameraView] = useState(defaultCameraView);
   const [squareScreenPositions, setSquareScreenPositions] =
     useState<BoardSquareScreenPositions>({});
+  const canvasShellRef = useRef<HTMLDivElement | null>(null);
+  const interactionHitTargetOverlayRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function restoreHitTargetPointerEvents() {
+      setHitTargetPointerEvents(interactionHitTargetOverlayRef.current, 'auto');
+    }
+
+    window.addEventListener('pointerup', restoreHitTargetPointerEvents);
+    window.addEventListener('pointercancel', restoreHitTargetPointerEvents);
+    window.addEventListener('blur', restoreHitTargetPointerEvents);
+
+    return () => {
+      window.removeEventListener('pointerup', restoreHitTargetPointerEvents);
+      window.removeEventListener('pointercancel', restoreHitTargetPointerEvents);
+      window.removeEventListener('blur', restoreHitTargetPointerEvents);
+    };
+  }, []);
+
+  function handleCameraViewChange(nextCameraView: BoardCameraView) {
+    setCameraView((currentCameraView) =>
+      areCameraViewsEqual(currentCameraView, nextCameraView)
+        ? currentCameraView
+        : nextCameraView,
+    );
+  }
 
   function handleCameraAction(action: BoardCameraAction) {
     setCameraView((currentCameraView) =>
       getNextCameraView(currentCameraView, action),
     );
+  }
+
+  function handleInteractionHitTargetOverlayMouseDownCapture(
+    event: ReactMouseEvent<HTMLDivElement>,
+  ) {
+    if (event.button === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    setHitTargetPointerEvents(interactionHitTargetOverlayRef.current, 'none');
+    forwardSecondaryPointerDownToCanvas(canvasShellRef.current, event);
+  }
+
+  function handleInteractionHitTargetOverlayWheelCapture(
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) {
+    event.preventDefault();
+    forwardWheelToCanvas(canvasShellRef.current, event);
   }
 
   return (
@@ -162,11 +220,18 @@ export function BoardScene({
       <div
         className="board-scene-canvas-shell"
         data-testid="board-scene-canvas-shell"
+        onContextMenu={(event) => event.preventDefault()}
+        ref={canvasShellRef}
       >
         <CanvasBoundary
           cameraView={cameraView}
           className="board-scene-canvas"
-          onSquareScreenPositionsChange={setSquareScreenPositions}
+          onCameraViewChange={handleCameraViewChange}
+          onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
+            startTransition(() => {
+              setSquareScreenPositions(nextSquareScreenPositions);
+            });
+          }}
         >
           <color args={['#e8ecf4']} attach="background" />
           <ambientLight intensity={0.8} />
@@ -255,6 +320,9 @@ export function BoardScene({
         <div
           className="board-scene-hit-target-overlay"
           data-testid="board-scene-hit-target-overlay"
+          onMouseDownCapture={handleInteractionHitTargetOverlayMouseDownCapture}
+          onWheelCapture={handleInteractionHitTargetOverlayWheelCapture}
+          ref={interactionHitTargetOverlayRef}
           style={interactionHitTargetOverlayStyle}
         >
           {boardSquares.map((boardSquare) => {
@@ -446,9 +514,11 @@ type BoardCameraAction =
 
 function BoardSceneCameraRig({
   cameraView,
+  onCameraViewChange,
   onSquareScreenPositionsChange,
 }: {
   cameraView: BoardCameraView;
+  onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
   ) => void;
@@ -457,14 +527,28 @@ function BoardSceneCameraRig({
   const size = useThree((state) => state.size);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const lastSquareScreenPositionsRef = useRef('');
+  const lastCameraViewSnapshotRef = useRef(getCameraViewSnapshot(cameraView));
 
   useLayoutEffect(() => {
-    const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
+    const controls = controlsRef.current;
+    const nextCameraViewSnapshot = getCameraViewSnapshot(cameraView);
 
-    setCameraPosition(camera, cameraX, cameraY, cameraZ);
-    camera.lookAt(0, 0, 0);
-    controlsRef.current?.target.set(0, 0, 0);
-    controlsRef.current?.update();
+    if (controls) {
+      const currentCameraViewSnapshot = getCameraViewSnapshot(
+        getCameraViewFromPosition(camera, controls.target),
+      );
+
+      if (currentCameraViewSnapshot !== nextCameraViewSnapshot) {
+        applyCameraViewToControls(controls, camera, cameraView);
+      }
+    } else {
+      const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
+
+      setCameraPosition(camera, cameraX, cameraY, cameraZ);
+      camera.lookAt(cameraTarget);
+    }
+
+    lastCameraViewSnapshotRef.current = nextCameraViewSnapshot;
     publishProjectedSquarePositions({
       camera,
       lastSquareScreenPositionsRef,
@@ -482,10 +566,28 @@ function BoardSceneCameraRig({
     });
   });
 
+  function handleControlsChange() {
+    const controls = controlsRef.current;
+
+    if (!controls || !onCameraViewChange) {
+      return;
+    }
+
+    const nextCameraView = getCameraViewFromPosition(camera, controls.target);
+    const nextCameraViewSnapshot = getCameraViewSnapshot(nextCameraView);
+
+    if (nextCameraViewSnapshot === lastCameraViewSnapshotRef.current) {
+      return;
+    }
+
+    lastCameraViewSnapshotRef.current = nextCameraViewSnapshot;
+    onCameraViewChange(nextCameraView);
+  }
+
   return (
     <OrbitControls
       ref={controlsRef}
-      dampingFactor={0.12}
+      dampingFactor={0.09}
       enableDamping
       enablePan={false}
       makeDefault
@@ -494,13 +596,18 @@ function BoardSceneCameraRig({
       minDistance={minCameraDistance}
       minPolarAngle={minCameraPolar}
       mouseButtons={{
-        LEFT: MOUSE.PAN,
+        LEFT: MOUSE.ROTATE,
         MIDDLE: MOUSE.DOLLY,
         RIGHT: MOUSE.ROTATE,
       }}
-      rotateSpeed={0.85}
-      target={[0, 0, 0]}
-      zoomSpeed={0.9}
+      onChange={handleControlsChange}
+      rotateSpeed={0.72}
+      target={[cameraTarget.x, cameraTarget.y, cameraTarget.z]}
+      touches={{
+        ONE: TOUCH.ROTATE,
+        TWO: TOUCH.DOLLY_PAN,
+      }}
+      zoomSpeed={1.15}
     />
   );
 }
@@ -577,11 +684,11 @@ function getNextCameraView(
       return overheadCameraView;
     case 'rotate-left':
       return createCustomCameraView(currentCameraView, {
-        azimuth: currentCameraView.azimuth - cameraRotateStep,
+        azimuth: normalizeAngle(currentCameraView.azimuth - cameraRotateStep),
       });
     case 'rotate-right':
       return createCustomCameraView(currentCameraView, {
-        azimuth: currentCameraView.azimuth + cameraRotateStep,
+        azimuth: normalizeAngle(currentCameraView.azimuth + cameraRotateStep),
       });
     case 'tilt-up':
       return createCustomCameraView(currentCameraView, {
@@ -650,8 +757,145 @@ function getCameraViewLabel(viewMode: BoardCameraViewMode): string {
   }
 }
 
+function applyCameraViewToControls(
+  controls: OrbitControlsImpl,
+  camera: Camera,
+  cameraView: BoardCameraView,
+) {
+  const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
+
+  controls.target.copy(cameraTarget);
+  setCameraPosition(camera, cameraX, cameraY, cameraZ);
+  camera.lookAt(cameraTarget);
+  controls.update();
+}
+
+function getCameraViewFromPosition(
+  camera: Camera,
+  target: Vector3 = cameraTarget,
+): BoardCameraView {
+  const offsetVector = camera.position.clone().sub(target);
+  const distance = clamp(offsetVector.length(), minCameraDistance, maxCameraDistance);
+  const horizontalDistance = Math.hypot(offsetVector.x, offsetVector.z);
+  const normalizedCameraView = {
+    azimuth: normalizeAngle(Math.atan2(offsetVector.x, offsetVector.z)),
+    distance: roundToTwoDecimals(distance),
+    polar: roundToTwoDecimals(
+      clamp(Math.atan2(horizontalDistance, offsetVector.y), minCameraPolar, maxCameraPolar),
+    ),
+    viewMode: 'custom' as const,
+  };
+
+  return {
+    ...normalizedCameraView,
+    viewMode: resolveCameraViewMode(normalizedCameraView),
+  };
+}
+
+function resolveCameraViewMode(cameraView: Omit<BoardCameraView, 'viewMode'>): BoardCameraViewMode {
+  if (isWithinCameraViewTolerance(cameraView, defaultCameraView)) {
+    return 'default';
+  }
+
+  if (isWithinCameraViewTolerance(cameraView, overheadCameraView)) {
+    return 'overhead';
+  }
+
+  return 'custom';
+}
+
+function isWithinCameraViewTolerance(
+  cameraView: Omit<BoardCameraView, 'viewMode'>,
+  targetCameraView: BoardCameraView,
+): boolean {
+  return (
+    Math.abs(normalizeAngle(cameraView.azimuth - targetCameraView.azimuth)) <=
+      cameraViewModeTolerance.azimuth &&
+    Math.abs(cameraView.distance - targetCameraView.distance) <=
+      cameraViewModeTolerance.distance &&
+    Math.abs(cameraView.polar - targetCameraView.polar) <=
+      cameraViewModeTolerance.polar
+  );
+}
+
+function areCameraViewsEqual(
+  currentCameraView: BoardCameraView,
+  nextCameraView: BoardCameraView,
+) {
+  return getCameraViewSnapshot(currentCameraView) === getCameraViewSnapshot(nextCameraView);
+}
+
+function getCameraViewSnapshot(cameraView: BoardCameraView): string {
+  return `${cameraView.viewMode}:${roundToTwoDecimals(normalizeAngle(cameraView.azimuth))}:${roundToTwoDecimals(cameraView.distance)}:${roundToTwoDecimals(cameraView.polar)}`;
+}
+
+function setHitTargetPointerEvents(
+  interactionHitTargetOverlayElement: HTMLDivElement | null,
+  pointerEvents: 'auto' | 'none',
+) {
+  interactionHitTargetOverlayElement
+    ?.querySelectorAll<HTMLElement>('[data-testid^="board-hit-target-"]')
+    .forEach((element) => {
+      element.style.pointerEvents = pointerEvents;
+    });
+}
+
+function forwardSecondaryPointerDownToCanvas(
+  canvasShellElement: HTMLDivElement | null,
+  event: ReactMouseEvent<HTMLDivElement>,
+) {
+  const canvasElement = canvasShellElement?.querySelector('canvas');
+
+  if (!canvasElement) {
+    return;
+  }
+
+  canvasElement.dispatchEvent(
+    new PointerEvent('pointerdown', {
+      bubbles: true,
+      button: event.button,
+      buttons: event.buttons,
+      cancelable: true,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      composed: true,
+      pointerId: 1,
+      pointerType: 'mouse',
+    }),
+  );
+}
+
+function forwardWheelToCanvas(
+  canvasShellElement: HTMLDivElement | null,
+  event: ReactWheelEvent<HTMLDivElement>,
+) {
+  const canvasElement = canvasShellElement?.querySelector('canvas');
+
+  if (!canvasElement) {
+    return;
+  }
+
+  canvasElement.dispatchEvent(
+    new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      composed: true,
+      deltaMode: event.deltaMode,
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaZ: event.deltaZ,
+    }),
+  );
+}
+
 function clamp(value: number, minValue: number, maxValue: number): number {
   return Math.min(Math.max(value, minValue), maxValue);
+}
+
+function normalizeAngle(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
 function setCameraPosition(

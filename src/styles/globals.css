@@ -160,6 +160,12 @@ textarea {
   min-height: 440px;
 }
 
+.board-scene-canvas-shell,
+.board-scene-canvas canvas {
+  touch-action: none;
+  user-select: none;
+}
+
 .board-scene-camera-ui {
   position: absolute;
   inset: auto 18px 18px 18px;
