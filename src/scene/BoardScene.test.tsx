@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 import {
@@ -8,8 +8,12 @@ import {
 } from '../chess/chessRules';
 import { BoardScene, type BoardSceneCanvasProps } from './BoardScene';
 
-function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
-  return <div data-testid="board-scene-canvas">{children}</div>;
+function TestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
+  return (
+    <div className={className} data-testid="board-scene-canvas">
+      {children}
+    </div>
+  );
 }
 
 describe('BoardScene', () => {
@@ -38,12 +42,26 @@ describe('BoardScene', () => {
     );
 
     expect(screen.getByTestId('board-scene-canvas')).toBeInTheDocument();
+    expect(screen.getByTestId('board-scene-canvas-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('board-scene-canvas')).toHaveClass(
+      'board-scene-canvas',
+    );
     expect(
       screen.getByRole('grid', { name: 'Chess board squares' }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('board-scene-interaction-overlay'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('board-scene-fallback')).toBeInTheDocument();
 
     const squareButtons = screen.getAllByRole('button', { name: /square$/i });
     expect(squareButtons).toHaveLength(64);
+    expect(
+      within(screen.getByTestId('board-scene-interaction-overlay')).getByRole(
+        'button',
+        { name: 'e2 square' },
+      ),
+    ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: 'e2 square' })).toHaveAttribute(
       'aria-pressed',
