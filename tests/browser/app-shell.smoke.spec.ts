@@ -215,9 +215,6 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   await page.getByRole('button', { name: 'Rotate left' }).click();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
-  await page.getByRole('button', { name: 'Zoom out' }).click();
-  await page.getByRole('button', { name: 'Reset view' }).click();
-  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 
   await clickRenderedSquare(g1HitTarget);
   await expect(g1Square).toHaveAttribute('aria-pressed', 'true');
@@ -233,6 +230,10 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   });
   await expectMoveHistoryEntry(page, 3, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
+
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 });
 
 test('keeps every piece grounded under a side-view camera using deterministic scene data', async ({

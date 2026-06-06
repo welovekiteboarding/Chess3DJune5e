@@ -212,6 +212,44 @@ describe('BoardScene', () => {
     expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
   });
 
+  it('keeps horizontal camera orbit unbounded across repeated full rotations', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={InteractiveTestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    const canvas = screen.getByTestId('interactive-board-scene-canvas');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Simulate orbit update' }));
+
+    for (let rotationStep = 0; rotationStep < 16; rotationStep += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Rotate right' }));
+    }
+
+    expect(Number(canvas.getAttribute('data-azimuth'))).toBeGreaterThan(
+      Math.PI * 2,
+    );
+    expect(canvas).toHaveAttribute('data-view-mode', 'custom');
+  });
+
+  it('does not tilt the board group to fake the camera angle', () => {
+    const { container } = render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    const boardGroup = container.querySelector('group');
+
+    expect(boardGroup).not.toBeNull();
+    expect(boardGroup).not.toHaveAttribute('rotation');
+  });
+
   it('renders one piece representation for every placement in the starting position', () => {
     const gameState = createInitialGameState();
     const piecePlacements = getPiecePlacementsFromFen(getFen(gameState));
