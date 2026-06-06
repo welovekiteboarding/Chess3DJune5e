@@ -108,20 +108,25 @@ const moveHighlightVisualContract = {
   legalMarkerOccupiedStyle: 'perimeter',
   legalMarkerPalette: 'sage-green',
   legalMarkerStyle: 'dot',
+  legalMarkerTreatment: 'flat-dot',
+  selectedHighlightContrast: 'light-dark-ready',
   selectedHighlightPalette: 'green-gold',
   selectedHighlightShape: 'perimeter',
+  selectedHighlightTreatment: 'dual-ring',
 } as const;
 const moveHighlightPalette = {
-  legalCoreColor: '#e8f4c8',
-  legalDotColor: '#74b071',
-  legalHaloColor: '#2e6a42',
-  legalPerimeterColor: '#67a96b',
-  legalPerimeterGlow: '#a7dd9a',
-  selectedAccentColor: '#b78e35',
-  selectedAccentGlow: '#f2d98b',
-  selectedBaseColor: '#215b34',
-  selectedBaseGlow: '#82ca7d',
-  selectedCornerColor: '#f6e4a8',
+  legalCoreColor: '#edf5cf',
+  legalDotColor: '#77b06d',
+  legalDotGlow: '#d6eab5',
+  legalHaloColor: '#26422e',
+  legalPerimeterColor: '#5d9360',
+  legalPerimeterGlow: '#9fd289',
+  markerContrastColor: '#121d15',
+  selectedAccentColor: '#c09b4a',
+  selectedAccentGlow: '#efd78f',
+  selectedBaseColor: '#2f6f44',
+  selectedBaseGlow: '#95d48f',
+  selectedContrastColor: '#101812',
 } as const;
 const defaultCameraView: BoardCameraView = {
   azimuth: 0,
@@ -206,6 +211,7 @@ export function BoardScene({
   const legalDestinationMarkers = Array.from(legalDestinationSet).map((square) => ({
     occupied: occupiedSquares.has(square),
     square,
+    treatment: getLegalDestinationMarkerTreatment(occupiedSquares.has(square)),
     variant: getLegalDestinationMarkerVariant(occupiedSquares.has(square)),
   }));
   const [cameraView, setCameraView] = useState(defaultCameraView);
@@ -633,11 +639,17 @@ export function BoardScene({
         <ul aria-label="Move highlight markers">
           {selectedSquare ? (
             <li
+              data-highlight-contrast={
+                moveHighlightVisualContract.selectedHighlightContrast
+              }
               data-highlight-palette={
                 moveHighlightVisualContract.selectedHighlightPalette
               }
               data-highlight-shape={
                 moveHighlightVisualContract.selectedHighlightShape
+              }
+              data-highlight-treatment={
+                moveHighlightVisualContract.selectedHighlightTreatment
               }
               data-square={selectedSquare}
               data-testid={`selected-square-highlight-${selectedSquare}`}
@@ -645,9 +657,10 @@ export function BoardScene({
               {selectedSquare}
             </li>
           ) : null}
-          {legalDestinationMarkers.map(({ occupied, square, variant }) => (
+          {legalDestinationMarkers.map(({ occupied, square, treatment, variant }) => (
             <li
               data-marker-palette={moveHighlightVisualContract.legalMarkerPalette}
+              data-marker-treatment={treatment}
               data-marker-variant={variant}
               data-occupied={String(occupied)}
               data-square={square}
@@ -696,12 +709,21 @@ export function BoardScene({
           }
           data-legal-marker-palette={moveHighlightVisualContract.legalMarkerPalette}
           data-legal-marker-style={boardVisualContract.legalMarkerStyleId}
+          data-legal-marker-treatment={
+            moveHighlightVisualContract.legalMarkerTreatment
+          }
           data-light-square-material={boardVisualContract.lightSquareMaterialId}
+          data-selected-highlight-contrast={
+            moveHighlightVisualContract.selectedHighlightContrast
+          }
           data-selected-highlight-palette={
             moveHighlightVisualContract.selectedHighlightPalette
           }
           data-selected-highlight-shape={
             moveHighlightVisualContract.selectedHighlightShape
+          }
+          data-selected-highlight-treatment={
+            moveHighlightVisualContract.selectedHighlightTreatment
           }
           data-selected-marker-style={boardVisualContract.selectedMarkerStyleId}
           data-testid="board-visual-contract"
@@ -934,25 +956,34 @@ function SelectedSquareHighlight() {
   return (
     <>
       <PerimeterMarkerFrame
+        color={moveHighlightPalette.selectedContrastColor}
+        depth={boardGeometry.selectedFrameDepth * 0.56}
+        emissive={moveHighlightPalette.selectedContrastColor}
+        emissiveIntensity={0}
+        opacity={0.88}
+        roughness={0.76}
+        thickness={boardGeometry.selectedFrameThickness + 0.16}
+        y={markerY - boardGeometry.selectedFrameDepth * 0.16}
+      />
+      <PerimeterMarkerFrame
         color={moveHighlightPalette.selectedBaseColor}
-        depth={boardGeometry.selectedFrameDepth * 0.72}
+        depth={boardGeometry.selectedFrameDepth * 0.82}
         emissive={moveHighlightPalette.selectedBaseGlow}
-        emissiveIntensity={0.44}
-        roughness={0.36}
-        thickness={boardGeometry.selectedFrameThickness + 0.05}
+        emissiveIntensity={0.34}
+        roughness={0.38}
+        thickness={boardGeometry.selectedFrameThickness + 0.03}
         y={markerY}
       />
       <PerimeterMarkerFrame
         color={moveHighlightPalette.selectedAccentColor}
-        depth={boardGeometry.selectedFrameDepth}
+        depth={boardGeometry.selectedFrameDepth * 0.52}
         emissive={moveHighlightPalette.selectedAccentGlow}
-        emissiveIntensity={0.28}
-        metalness={0.18}
-        roughness={0.3}
-        thickness={boardGeometry.selectedFrameThickness * 0.62}
-        y={markerY + boardGeometry.selectedFrameDepth * 0.2}
+        emissiveIntensity={0.2}
+        metalness={0.2}
+        roughness={0.28}
+        thickness={boardGeometry.selectedFrameThickness * 0.4}
+        y={markerY + boardGeometry.selectedFrameDepth * 0.18}
       />
-      <SelectionCornerBeacons markerY={markerY} />
     </>
   );
 }
@@ -966,23 +997,37 @@ function LegalDestinationMarker({ occupied }: { occupied: boolean }) {
 }
 
 function LegalDestinationPerimeterMarker() {
-  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.85;
+  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.72;
 
   return (
     <>
       <PerimeterMarkerFrame
-        color={moveHighlightPalette.legalHaloColor}
-        depth={boardGeometry.legalMarkerHeight * 0.7}
+        color={moveHighlightPalette.markerContrastColor}
+        depth={boardGeometry.legalMarkerHeight * 0.34}
+        emissive={moveHighlightPalette.markerContrastColor}
+        emissiveIntensity={0}
+        opacity={0.82}
+        roughness={0.82}
+        thickness={boardGeometry.selectedFrameThickness * 0.68}
+        y={markerY - boardGeometry.legalMarkerHeight * 0.08}
+      />
+      <PerimeterMarkerFrame
+        color={moveHighlightPalette.legalPerimeterColor}
+        depth={boardGeometry.legalMarkerHeight * 0.52}
         emissive={moveHighlightPalette.legalPerimeterGlow}
-        emissiveIntensity={0.24}
-        roughness={0.46}
-        thickness={boardGeometry.selectedFrameThickness * 0.54}
+        emissiveIntensity={0.18}
+        roughness={0.42}
+        thickness={boardGeometry.selectedFrameThickness * 0.48}
         y={markerY}
       />
-      <SelectionCornerBeacons
+      <PerimeterMarkerFrame
         color={moveHighlightPalette.legalCoreColor}
-        markerY={markerY}
-        radius={0.055}
+        depth={boardGeometry.legalMarkerHeight * 0.22}
+        emissive={moveHighlightPalette.legalDotGlow}
+        emissiveIntensity={0.14}
+        roughness={0.28}
+        thickness={boardGeometry.selectedFrameThickness * 0.26}
+        y={markerY + boardGeometry.legalMarkerHeight * 0.16}
       />
     </>
   );
@@ -996,73 +1041,77 @@ function LegalDestinationDotMarker() {
 
   return (
     <>
-      <mesh position={[0, markerY - boardGeometry.legalMarkerHeight * 0.18, 0]}>
+      <mesh position={[0, markerY - boardGeometry.legalMarkerHeight * 0.3, 0]}>
         <cylinderGeometry
           args={[
-            boardGeometry.legalMarkerRadius * 0.96,
-            boardGeometry.legalMarkerRadius * 1.08,
-            boardGeometry.legalMarkerHeight * 0.34,
-            36,
+            boardGeometry.legalMarkerRadius * 1.1,
+            boardGeometry.legalMarkerRadius * 1.1,
+            boardGeometry.legalMarkerHeight * 0.22,
+            40,
           ]}
         />
         <meshStandardMaterial
-          color={moveHighlightPalette.legalHaloColor}
-          emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.14}
-          opacity={0.92}
-          roughness={0.56}
+          color={moveHighlightPalette.markerContrastColor}
+          emissive={moveHighlightPalette.markerContrastColor}
+          emissiveIntensity={0}
+          opacity={0.84}
+          roughness={0.82}
           transparent
         />
       </mesh>
-      <mesh position={[0, markerY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, markerY - boardGeometry.legalMarkerHeight * 0.02, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <torusGeometry
           args={[
-            boardGeometry.legalMarkerRingRadius * 0.82,
-            boardGeometry.legalMarkerRingTube * 0.85,
-            20,
-            48,
+            boardGeometry.legalMarkerRingRadius * 0.74,
+            boardGeometry.legalMarkerRingTube * 0.5,
+            18,
+            42,
           ]}
         />
         <meshStandardMaterial
           color={moveHighlightPalette.legalHaloColor}
           emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.16}
+          emissiveIntensity={0.12}
           metalness={0.08}
-          roughness={0.56}
+          opacity={0.92}
+          roughness={0.62}
+          transparent
         />
       </mesh>
       <mesh position={[0, markerY, 0]}>
         <cylinderGeometry
           args={[
-            boardGeometry.legalMarkerRadius * 0.74,
+            boardGeometry.legalMarkerRadius * 0.7,
             boardGeometry.legalMarkerRadius * 0.82,
-            boardGeometry.legalMarkerHeight * 0.58,
-            32,
+            boardGeometry.legalMarkerHeight * 0.32,
+            36,
           ]}
         />
         <meshStandardMaterial
           color={moveHighlightPalette.legalDotColor}
           emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.24}
+          emissiveIntensity={0.16}
           metalness={0.06}
-          roughness={0.42}
+          roughness={0.36}
         />
       </mesh>
       <mesh position={[0, markerY + boardGeometry.legalMarkerHeight * 0.12, 0]}>
-        <cylinderGeometry
+        <sphereGeometry
           args={[
-            boardGeometry.legalMarkerRadius * 0.28,
-            boardGeometry.legalMarkerRadius * 0.34,
-            boardGeometry.legalMarkerHeight * 0.34,
-            24,
+            boardGeometry.legalMarkerRadius * 0.22,
+            18,
+            18,
           ]}
         />
         <meshStandardMaterial
           color={moveHighlightPalette.legalCoreColor}
-          emissive={moveHighlightPalette.legalCoreColor}
-          emissiveIntensity={0.18}
+          emissive={moveHighlightPalette.legalDotGlow}
+          emissiveIntensity={0.2}
           metalness={0.08}
-          roughness={0.28}
+          roughness={0.22}
         />
       </mesh>
     </>
@@ -1075,6 +1124,7 @@ function PerimeterMarkerFrame({
   emissive,
   emissiveIntensity,
   metalness = 0.1,
+  opacity,
   roughness,
   thickness,
   y,
@@ -1084,6 +1134,7 @@ function PerimeterMarkerFrame({
   emissive: string;
   emissiveIntensity: number;
   metalness?: number;
+  opacity?: number;
   roughness: number;
   thickness: number;
   y: number;
@@ -1100,7 +1151,9 @@ function PerimeterMarkerFrame({
           emissive={emissive}
           emissiveIntensity={emissiveIntensity}
           metalness={metalness}
+          opacity={opacity}
           roughness={roughness}
+          transparent={opacity !== undefined && opacity < 1}
         />
       </mesh>
       <mesh position={[0, y, -offset]}>
@@ -1110,7 +1163,9 @@ function PerimeterMarkerFrame({
           emissive={emissive}
           emissiveIntensity={emissiveIntensity}
           metalness={metalness}
+          opacity={opacity}
           roughness={roughness}
+          transparent={opacity !== undefined && opacity < 1}
         />
       </mesh>
       <mesh position={[offset, y, 0]}>
@@ -1120,7 +1175,9 @@ function PerimeterMarkerFrame({
           emissive={emissive}
           emissiveIntensity={emissiveIntensity}
           metalness={metalness}
+          opacity={opacity}
           roughness={roughness}
+          transparent={opacity !== undefined && opacity < 1}
         />
       </mesh>
       <mesh position={[-offset, y, 0]}>
@@ -1130,43 +1187,13 @@ function PerimeterMarkerFrame({
           emissive={emissive}
           emissiveIntensity={emissiveIntensity}
           metalness={metalness}
+          opacity={opacity}
           roughness={roughness}
+          transparent={opacity !== undefined && opacity < 1}
         />
       </mesh>
     </>
   );
-}
-
-function SelectionCornerBeacons({
-  color = moveHighlightPalette.selectedCornerColor,
-  markerY,
-  radius = 0.065,
-}: {
-  color?: string;
-  markerY: number;
-  radius?: number;
-}) {
-  const offset = squareSize / 2 - boardGeometry.selectedFrameThickness * 0.72;
-  const beaconY = markerY + boardGeometry.selectedFrameDepth * 0.46;
-  const corners = [
-    [offset, offset],
-    [offset, -offset],
-    [-offset, offset],
-    [-offset, -offset],
-  ] as const;
-
-  return corners.map(([x, z], cornerIndex) => (
-    <mesh key={`corner-beacon-${cornerIndex}`} position={[x, beaconY, z]}>
-      <cylinderGeometry args={[radius, radius * 1.08, 0.028, 18]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={color}
-        emissiveIntensity={0.2}
-        metalness={0.16}
-        roughness={0.22}
-      />
-    </mesh>
-  ));
 }
 
 function getLegalDestinationMarkerVariant(
@@ -1175,6 +1202,10 @@ function getLegalDestinationMarkerVariant(
   return occupied
     ? moveHighlightVisualContract.legalMarkerOccupiedStyle
     : moveHighlightVisualContract.legalMarkerStyle;
+}
+
+function getLegalDestinationMarkerTreatment(occupied: boolean) {
+  return occupied ? 'capture-ring' : moveHighlightVisualContract.legalMarkerTreatment;
 }
 
 type BoardCameraAction =

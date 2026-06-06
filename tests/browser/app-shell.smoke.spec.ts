@@ -157,7 +157,15 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   await clickRenderedSquare(e2HitTarget);
 
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+    'data-highlight-treatment',
+    'dual-ring',
+  );
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
+  await expect(page.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
+    'data-marker-treatment',
+    'flat-dot',
+  );
 
   await clickRenderedSquare(e4HitTarget);
 
@@ -341,8 +349,16 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await clickRenderedSquare(e2HitTarget);
 
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+    'data-highlight-contrast',
+    'light-dark-ready',
+  );
   await expect(e3Square).toHaveAttribute('data-legal-destination', 'true');
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
+  await expect(page.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
+    'data-marker-treatment',
+    'flat-dot',
+  );
 
   await clickRenderedSquare(e4HitTarget);
 

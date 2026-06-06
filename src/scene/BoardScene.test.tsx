@@ -515,6 +515,14 @@ describe('BoardScene', () => {
       'data-highlight-shape',
       'perimeter',
     );
+    expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+      'data-highlight-treatment',
+      'dual-ring',
+    );
+    expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+      'data-highlight-contrast',
+      'light-dark-ready',
+    );
 
     expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
       'data-marker-variant',
@@ -524,6 +532,10 @@ describe('BoardScene', () => {
       'data-occupied',
       'false',
     );
+    expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
+      'data-marker-treatment',
+      'flat-dot',
+    );
     expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
       'data-marker-variant',
       'perimeter',
@@ -532,13 +544,25 @@ describe('BoardScene', () => {
       'data-occupied',
       'true',
     );
+    expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
+      'data-marker-treatment',
+      'capture-ring',
+    );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-legal-marker-occupied-style',
       'perimeter',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-legal-marker-treatment',
+      'flat-dot',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-selected-highlight-palette',
       'green-gold',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-selected-highlight-treatment',
+      'dual-ring',
     );
   });
 
