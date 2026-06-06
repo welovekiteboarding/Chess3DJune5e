@@ -484,6 +484,88 @@ describe('BoardScene', () => {
     expect(screen.queryByTestId('legal-destination-square-e4')).not.toBeInTheDocument();
   });
 
+  it('publishes a readable move-highlight contract for empty and occupied legal destinations', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={['e4', 'e7']}
+        piecePlacements={[
+          {
+            renderId: 'white-pawn-e2',
+            square: 'e2',
+            piece: 'pawn',
+            color: 'white',
+          },
+          {
+            renderId: 'black-pawn-e7',
+            square: 'e7',
+            piece: 'pawn',
+            color: 'black',
+          },
+        ]}
+        selectedSquare="e2"
+      />,
+    );
+
+    expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+      'data-highlight-palette',
+      'green-gold',
+    );
+    expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+      'data-highlight-shape',
+      'perimeter',
+    );
+    expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+      'data-highlight-treatment',
+      'dual-ring',
+    );
+    expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+      'data-highlight-contrast',
+      'light-dark-ready',
+    );
+
+    expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
+      'data-marker-variant',
+      'dot',
+    );
+    expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
+      'data-occupied',
+      'false',
+    );
+    expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
+      'data-marker-treatment',
+      'flat-dot',
+    );
+    expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
+      'data-marker-variant',
+      'perimeter',
+    );
+    expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
+      'data-occupied',
+      'true',
+    );
+    expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
+      'data-marker-treatment',
+      'capture-ring',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-legal-marker-occupied-style',
+      'perimeter',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-legal-marker-treatment',
+      'flat-dot',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-selected-highlight-palette',
+      'green-gold',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-selected-highlight-treatment',
+      'dual-ring',
+    );
+  });
+
   it('publishes the upgraded board visual contract for non-visual regression checks', () => {
     render(
       <BoardScene
