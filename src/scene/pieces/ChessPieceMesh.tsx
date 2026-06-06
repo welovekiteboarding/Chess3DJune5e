@@ -5,6 +5,7 @@ import type {
   ChessPiecePlacement,
   ChessSquare,
 } from '../../chess/chessTypes';
+import { getPieceAccessibleLabel } from './pieceMetadata';
 
 interface ChessPieceMeshProps {
   onSelect?: (square: ChessSquare) => void;
@@ -33,15 +34,6 @@ const piecePaletteByColor = {
   },
 } satisfies Record<ChessPiecePlacement['color'], PiecePalette>;
 
-const pieceMarkerByType = {
-  bishop: 'spire',
-  king: 'cross-crown',
-  knight: 'horse-head',
-  pawn: 'orb',
-  queen: 'crown',
-  rook: 'battlement',
-} as const satisfies Record<ChessPiece, string>;
-
 const rookBattlementPositions: readonly PiecePosition[] = [
   [-0.12, 0.79, -0.12],
   [0.12, 0.79, -0.12],
@@ -63,6 +55,7 @@ export function ChessPieceMesh({
   position,
 }: ChessPieceMeshProps) {
   const palette = piecePaletteByColor[piecePlacement.color];
+  const accessibleLabel = getPieceAccessibleLabel(piecePlacement);
 
   function handleClick(event: ThreeEvent<MouseEvent>) {
     event.stopPropagation();
@@ -71,14 +64,16 @@ export function ChessPieceMesh({
 
   return (
     <group
-      aria-label={`${piecePlacement.color} ${piecePlacement.piece} piece on ${piecePlacement.square}`}
-      data-piece-color={piecePlacement.color}
-      data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
-      data-piece-square={piecePlacement.square}
-      data-piece-type={piecePlacement.piece}
-      data-testid={`board-piece-visual-${piecePlacement.renderId}`}
+      name={`board-piece-${piecePlacement.renderId}`}
       onClick={handleClick}
       position={position}
+      userData={{
+        accessibleLabel,
+        pieceColor: piecePlacement.color,
+        pieceSquare: piecePlacement.square,
+        pieceType: piecePlacement.piece,
+        renderId: piecePlacement.renderId,
+      }}
     >
       <PieceBase palette={palette} />
       {renderPieceTop(piecePlacement.piece, palette)}

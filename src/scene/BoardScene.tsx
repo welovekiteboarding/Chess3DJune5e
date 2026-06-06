@@ -16,7 +16,11 @@ import {
 } from 'react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
-import { ChessPieceMesh } from './pieces';
+import {
+  ChessPieceMesh,
+  getPieceAccessibleLabel,
+  pieceMarkerByType,
+} from './pieces';
 
 type BoardCameraViewMode = 'custom' | 'default' | 'overhead';
 
@@ -451,6 +455,7 @@ export function BoardScene({
           {piecePlacements.map((piecePlacement) => (
             <li
               data-color={piecePlacement.color}
+              data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
               data-piece={piecePlacement.piece}
               data-render-id={piecePlacement.renderId}
               data-square={piecePlacement.square}
@@ -458,7 +463,11 @@ export function BoardScene({
               key={piecePlacement.renderId}
             >
               <span
+                aria-label={getPieceAccessibleLabel(piecePlacement)}
+                data-piece-color={piecePlacement.color}
+                data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
                 data-square={piecePlacement.square}
+                data-piece-type={piecePlacement.piece}
                 data-testid={`board-piece-${piecePlacement.renderId}`}
               >
                 {piecePlacement.color} {piecePlacement.piece} on {piecePlacement.square}

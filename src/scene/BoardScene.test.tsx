@@ -272,32 +272,43 @@ describe('BoardScene', () => {
       />,
     );
 
-    expect(
-      screen.getByTestId('board-piece-visual-white-king-e1'),
-    ).toHaveAttribute('data-piece-marker', 'cross-crown');
-    expect(
-      screen.getByTestId('board-piece-visual-white-queen-d1'),
-    ).toHaveAttribute('data-piece-marker', 'crown');
-    expect(
-      screen.getByTestId('board-piece-visual-white-rook-a1'),
-    ).toHaveAttribute('data-piece-marker', 'battlement');
-    expect(
-      screen.getByTestId('board-piece-visual-black-bishop-c8'),
-    ).toHaveAttribute('data-piece-marker', 'spire');
-    expect(
-      screen.getByTestId('board-piece-visual-black-knight-g8'),
-    ).toHaveAttribute('data-piece-marker', 'horse-head');
-    expect(
-      screen.getByTestId('board-piece-visual-black-pawn-e7'),
-    ).toHaveAttribute('data-piece-marker', 'orb');
+    expect(screen.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
+      'aria-label',
+      'white king piece on e1',
+    );
+    expect(screen.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
+      'data-piece-marker',
+      'cross-crown',
+    );
+    expect(screen.getByTestId('board-piece-white-queen-d1')).toHaveAttribute(
+      'data-piece-marker',
+      'crown',
+    );
+    expect(screen.getByTestId('board-piece-white-rook-a1')).toHaveAttribute(
+      'data-piece-marker',
+      'battlement',
+    );
+    expect(screen.getByTestId('board-piece-black-bishop-c8')).toHaveAttribute(
+      'data-piece-marker',
+      'spire',
+    );
+    expect(screen.getByTestId('board-piece-black-knight-g8')).toHaveAttribute(
+      'data-piece-marker',
+      'horse-head',
+    );
+    expect(screen.getByTestId('board-piece-black-pawn-e7')).toHaveAttribute(
+      'data-piece-marker',
+      'orb',
+    );
 
-    expect(screen.getByTestId('board-piece-visual-white-king-e1')).toHaveAttribute(
+    expect(screen.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
       'data-piece-type',
       'king',
     );
-    expect(
-      screen.getByTestId('board-piece-visual-black-knight-g8'),
-    ).toHaveAttribute('data-piece-color', 'black');
+    expect(screen.getByTestId('board-piece-black-knight-g8')).toHaveAttribute(
+      'data-piece-color',
+      'black',
+    );
   });
 
   it('removes structural legal-destination markers when no legal squares are provided', () => {
