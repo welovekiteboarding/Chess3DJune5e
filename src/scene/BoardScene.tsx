@@ -2086,7 +2086,7 @@ function getInteractionHitTargetStyle(
           : Math.min(currentClosestDistance, candidateDistance),
       null,
     );
-  const targetSize = roundToTwoDecimals(
+  const targetSize = roundToNearestPixel(
     clamp((closestNeighborDistance ?? 42) * 0.72, 18, 72),
   );
 
@@ -2233,10 +2233,10 @@ function projectBoardPositionToScreen({
   z: number;
 }): BoardSquareScreenPosition {
   const projectedVector = new Vector3(x, y, z).project(camera);
-  const screenX = roundToTwoDecimals(
+  const screenX = roundToNearestPixel(
     (projectedVector.x * 0.5 + 0.5) * size.width,
   );
-  const screenY = roundToTwoDecimals(
+  const screenY = roundToNearestPixel(
     (-projectedVector.y * 0.5 + 0.5) * size.height,
   );
 
@@ -2255,4 +2255,8 @@ function projectBoardPositionToScreen({
 
 function roundToTwoDecimals(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function roundToNearestPixel(value: number): number {
+  return Math.round(value);
 }
