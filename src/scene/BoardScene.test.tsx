@@ -16,6 +16,39 @@ function TestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
   );
 }
 
+function InteractiveTestCanvasBoundary({
+  cameraView,
+  children,
+  className,
+  onCameraViewChange,
+}: BoardSceneCanvasProps) {
+  return (
+    <div
+      className={className}
+      data-azimuth={cameraView?.azimuth}
+      data-distance={cameraView?.distance}
+      data-polar={cameraView?.polar}
+      data-testid="interactive-board-scene-canvas"
+      data-view-mode={cameraView?.viewMode}
+    >
+      <button
+        onClick={() =>
+          onCameraViewChange?.({
+            azimuth: 0.9,
+            distance: 5.2,
+            polar: 0.52,
+            viewMode: 'custom',
+          })
+        }
+        type="button"
+      >
+        Simulate orbit update
+      </button>
+      {children}
+    </div>
+  );
+}
+
 describe('BoardScene', () => {
   it('renders a testable 3D board shell with stable square controls', () => {
     const handleSquareSelect = vi.fn();
@@ -143,6 +176,40 @@ describe('BoardScene', () => {
       'data-view-mode',
       'default',
     );
+  });
+
+  it('applies camera button actions from the latest manual orbit state', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={InteractiveTestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    const canvas = screen.getByTestId('interactive-board-scene-canvas');
+
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Simulate orbit update' }));
+
+    expect(canvas).toHaveAttribute('data-view-mode', 'custom');
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(5.2, 5);
+    expect(Number(canvas.getAttribute('data-azimuth'))).toBeCloseTo(0.9, 5);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+
+    expect(Number(canvas.getAttribute('data-distance'))).toBeGreaterThan(5.2);
+    expect(Number(canvas.getAttribute('data-distance'))).toBeLessThan(7);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate left' }));
+
+    expect(Number(canvas.getAttribute('data-azimuth'))).toBeLessThan(0.9);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
+
+    expect(canvas).toHaveAttribute('data-view-mode', 'default');
+    expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
   });
 
   it('renders one piece representation for every placement in the starting position', () => {

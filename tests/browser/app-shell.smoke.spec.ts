@@ -104,6 +104,11 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   expect(resetE2Position).toEqual(defaultE2Position);
   expect(resetE4Position).toEqual(defaultE4Position);
 
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expect(e2Square).toHaveAttribute('data-screen-x', String(defaultE2Position.x));
+  await expect(e2Square).toHaveAttribute('data-screen-y', String(defaultE2Position.y));
+
   await clickRenderedSquare(e2HitTarget);
 
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
