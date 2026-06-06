@@ -48,98 +48,114 @@ export function GamePanel({
       className="game-panel"
       data-testid="game-panel"
     >
-      <header>
-        <h2
-          id="game-panel-title"
-          style={{
-            margin: 0,
-            fontSize: '1.25rem',
-          }}
-        >
-          Game control panel
-        </h2>
+      <header className="game-panel__header">
+        <div>
+          <p className="game-panel__eyebrow">Operational console</p>
+          <h2 id="game-panel-title">Command deck</h2>
+        </div>
+        <p className="game-panel__summary">
+          Local-only telemetry, move tracking, and engine controls aligned to
+          the active board.
+        </p>
       </header>
 
       <div
-        aria-label="Current game details"
-        className="game-panel__details"
-        data-testid="game-panel-details"
+        className="game-panel__telemetry-grid"
+        data-testid="game-panel-telemetry-grid"
       >
-        <p style={{ margin: 0 }}>Status: {status}</p>
-        <p style={{ margin: 0 }}>Side to move: {sideToMove}</p>
-        <p style={{ margin: 0 }}>Human side: {humanSide}</p>
-        <p style={{ margin: 0 }}>AI side: {aiSide}</p>
-        <p aria-live="polite" style={{ margin: 0 }}>
-          {isEngineThinking ? 'Engine thinking' : 'Engine idle'}
-        </p>
-        {latestError ? (
-          <p
-            aria-atomic="true"
-            aria-label="Engine error"
-            aria-live="assertive"
-            role="alert"
-            style={{ margin: 0 }}
-          >
-            Latest error: {latestError}
-          </p>
-        ) : (
-          <p style={{ margin: 0 }}>Latest error: None</p>
-        )}
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">Turn</span>
+          <strong className="game-panel__telemetry-value">{sideToMove}</strong>
+        </article>
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">Human</span>
+          <strong className="game-panel__telemetry-value">{humanSide}</strong>
+        </article>
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">AI seat</span>
+          <strong className="game-panel__telemetry-value">{aiSide}</strong>
+        </article>
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">Engine</span>
+          <strong className="game-panel__telemetry-value">
+            {isEngineThinking ? 'Thinking' : 'Idle'}
+          </strong>
+        </article>
       </div>
 
-      <div
-        aria-label="Game controls"
-        className="game-panel__controls"
-        data-testid="game-panel-controls"
-      >
-        <label
-          className="game-panel__field"
-          htmlFor="game-panel-difficulty"
+      <div className="game-panel__top-stack" data-testid="game-panel-details">
+        <section
+          aria-label="Current game details"
+          className="game-panel__section game-panel__section--status"
+          data-testid="game-panel-status"
         >
-          <span>AI difficulty</span>
-          <select
-            id="game-panel-difficulty"
-            onChange={handleDifficultyChange}
-            value={selectedDifficulty}
-          >
-            {difficultyOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="game-panel__section-heading">
+            <h3>Match status</h3>
+            <span className="game-panel__section-chip">{status}</span>
+          </div>
+          <div className="game-panel__details">
+            <p className="game-panel__detail-line">Status: {status}</p>
+            <p className="game-panel__detail-line">Side to move: {sideToMove}</p>
+            <p className="game-panel__detail-line">Human side: {humanSide}</p>
+          </div>
+        </section>
 
-        <button onClick={onNewGame} type="button">
-          New game
-        </button>
-
-        {isEngineThinking && onCancelAiMove ? (
-          <button onClick={onCancelAiMove} type="button">
-            Cancel AI move
-          </button>
-        ) : null}
-
-        {!isEngineThinking && onRetryAiMove ? (
-          <button onClick={onRetryAiMove} type="button">
-            Retry AI move
-          </button>
-        ) : null}
+        <section
+          aria-label="Stockfish state"
+          className="game-panel__section game-panel__section--engine"
+          data-testid="game-panel-engine"
+        >
+          <div className="game-panel__section-heading">
+            <h3>Stockfish</h3>
+            <span className="game-panel__section-chip game-panel__section-chip--accent">
+              {isEngineThinking ? 'Thinking' : 'Idle'}
+            </span>
+          </div>
+          <div aria-label="Current game details" className="game-panel__details">
+            <p className="game-panel__detail-line">AI side: {aiSide}</p>
+            <p aria-live="polite" className="game-panel__detail-line">
+              {isEngineThinking ? 'Engine thinking' : 'Engine idle'}
+            </p>
+            {latestError ? (
+              <p
+                aria-atomic="true"
+                aria-label="Engine error"
+                aria-live="assertive"
+                className="game-panel__detail-line game-panel__detail-line--error"
+                role="alert"
+              >
+                Latest error: {latestError}
+              </p>
+            ) : (
+              <p className="game-panel__detail-line">Latest error: None</p>
+            )}
+          </div>
+        </section>
       </div>
 
       <section
         aria-label="Move history"
-        className="game-panel__history"
+        className="game-panel__section game-panel__history"
         data-testid="move-history-section"
       >
-        <h3
-          style={{
-            margin: '0 0 0.75rem',
-            fontSize: '1rem',
-          }}
-        >
-          Move history
-        </h3>
+        <div className="game-panel__section-heading">
+          <h3>Move history</h3>
+          <span className="game-panel__section-chip">
+            {moveHistory.length} recorded
+          </span>
+        </div>
         <div
           className="game-panel__history-scroll"
           data-testid="move-history-scroll"
@@ -148,6 +164,7 @@ export function GamePanel({
             <ol className="game-panel__history-list" data-testid="move-history-list">
               {moveHistory.map((move, index) => (
                 <li
+                  className="game-panel__history-item"
                   data-move-index={index}
                   data-move-value={move}
                   data-testid="move-history-item"
@@ -158,8 +175,56 @@ export function GamePanel({
               ))}
             </ol>
           ) : (
-            <p style={{ margin: 0 }}>No moves yet.</p>
+            <p className="game-panel__empty-state">No moves yet.</p>
           )}
+        </div>
+      </section>
+
+      <section
+        aria-label="Game controls"
+        className="game-panel__section game-panel__controls"
+        data-testid="game-panel-controls"
+      >
+        <div className="game-panel__section-heading">
+          <h3>Game controls</h3>
+          <span className="game-panel__section-chip">Local</span>
+        </div>
+        <div className="game-panel__control-grid">
+          <label
+            className="game-panel__field"
+            htmlFor="game-panel-difficulty"
+          >
+            <span>AI difficulty</span>
+            <select
+              id="game-panel-difficulty"
+              onChange={handleDifficultyChange}
+              value={selectedDifficulty}
+            >
+              {difficultyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="game-panel__button-row">
+            <button onClick={onNewGame} type="button">
+              New game
+            </button>
+
+            {isEngineThinking && onCancelAiMove ? (
+              <button onClick={onCancelAiMove} type="button">
+                Cancel AI move
+              </button>
+            ) : null}
+
+            {!isEngineThinking && onRetryAiMove ? (
+              <button onClick={onRetryAiMove} type="button">
+                Retry AI move
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
     </section>

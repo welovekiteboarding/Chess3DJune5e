@@ -140,73 +140,109 @@ export function App({
   return (
     <div className="app-shell" data-testid="app-shell">
       <div className="app-backdrop" />
-
-      <header className="hero-bar">
-        <p className="eyebrow">Local foundation</p>
-        <h1 data-testid="app-shell-title">3D Chess</h1>
-        <p className="hero-copy">
-          A local-first shell that wires the board scene, game controls, and
-          store state into one responsive workspace.
-        </p>
-      </header>
-
-      <main className="workspace-grid" data-testid="workspace-grid">
-        <section
-          aria-label="Board region"
-          className="workspace-card board-region"
-          data-testid="board-region"
-          role="region"
-        >
-          <div className="card-chrome">
-            <span>Board</span>
-            <span>{sideToMoveLabel}</span>
+      <div className="app-shell__frame">
+        <header className="hero-bar">
+          <div className="hero-bar__title-group">
+            <p className="eyebrow">Local Stockfish cockpit</p>
+            <h1 data-testid="app-shell-title">3D Chess</h1>
+            <p className="hero-copy">
+              A contained desktop command surface with the board as the hero and
+              match telemetry docked to the right.
+            </p>
           </div>
-          <BoardScene
-            CanvasBoundary={boardSceneCanvasBoundary}
-            className="board-scene"
-            legalDestinationSquares={legalDestinationSquares}
-            onSquareSelect={handleSquareSelect}
-            piecePlacements={piecePlacements}
-            selectedSquare={selectedSquare}
-          />
-        </section>
 
-        <section
-          aria-label="Panel region"
-          className="workspace-card panel-region"
-          data-testid="panel-region"
-          role="region"
-        >
-          <div className="card-chrome">
-            <span>Controls</span>
-            <span>{gameStatusLabel}</span>
+          <div
+            aria-label="Live game overview"
+            className="hero-bar__status-grid"
+          >
+            <div className="hero-bar__status-chip">
+              <span className="hero-bar__status-label">Status</span>
+              <strong>{gameStatusLabel}</strong>
+            </div>
+            <div className="hero-bar__status-chip">
+              <span className="hero-bar__status-label">Turn</span>
+              <strong>{sideToMoveLabel}</strong>
+            </div>
+            <div className="hero-bar__status-chip">
+              <span className="hero-bar__status-label">Engine</span>
+              <strong>{isEngineThinking ? 'Thinking' : 'Idle'}</strong>
+            </div>
           </div>
-          <div className="panel-scroll" data-testid="panel-scroll">
-            {pendingPromotion ? (
-              <PromotionDialog
-                choices={pendingPromotion.choices}
-                onCancel={cancelPendingPromotion}
-                onChoose={completePendingPromotion}
-              />
-            ) : null}
-            <GamePanel
-              aiSide={capitalizeLabel(aiSide)}
-              difficultyOptions={difficultyOptions}
-              humanSide={capitalizeLabel(humanSide)}
-              isEngineThinking={isEngineThinking}
-              latestError={latestError}
-              moveHistory={renderedMoveHistory}
-              onCancelAiMove={cancelAiMove}
-              onDifficultyChange={handleDifficultyChange}
-              onNewGame={startNewGame}
-              onRetryAiMove={canRetryAiMove ? handleRetryAiMove : undefined}
-              selectedDifficulty={aiDifficulty}
-              sideToMove={sideToMoveLabel}
-              status={gameStatusLabel}
+        </header>
+
+        <main className="workspace-grid" data-testid="workspace-grid">
+          <section
+            aria-label="Board region"
+            className="workspace-card board-region"
+            data-testid="board-region"
+            role="region"
+          >
+            <div className="card-chrome card-chrome--board">
+              <div className="card-chrome__cluster">
+                <span>Primary board</span>
+                <strong>Hero viewport</strong>
+              </div>
+              <span>{sideToMoveLabel}</span>
+            </div>
+            <div className="board-region__intro">
+              <div className="board-region__intro-copy">
+                <p className="board-region__eyebrow">Command surface</p>
+                <p className="board-region__title">Human vs Stockfish</p>
+              </div>
+              <p className="board-region__badge">
+                {isEngineThinking ? 'Engine active' : 'Engine ready'}
+              </p>
+            </div>
+            <BoardScene
+              CanvasBoundary={boardSceneCanvasBoundary}
+              className="board-scene"
+              legalDestinationSquares={legalDestinationSquares}
+              onSquareSelect={handleSquareSelect}
+              piecePlacements={piecePlacements}
+              selectedSquare={selectedSquare}
             />
-          </div>
-        </section>
-      </main>
+          </section>
+
+          <section
+            aria-label="Panel region"
+            className="workspace-card panel-region"
+            data-testid="panel-region"
+            role="region"
+          >
+            <div className="card-chrome card-chrome--panel">
+              <div className="card-chrome__cluster">
+                <span>Command deck</span>
+                <strong>Telemetry + controls</strong>
+              </div>
+              <span>{isEngineThinking ? 'Engine online' : 'Engine standing by'}</span>
+            </div>
+            <div className="panel-scroll" data-testid="panel-scroll">
+              {pendingPromotion ? (
+                <PromotionDialog
+                  choices={pendingPromotion.choices}
+                  onCancel={cancelPendingPromotion}
+                  onChoose={completePendingPromotion}
+                />
+              ) : null}
+              <GamePanel
+                aiSide={capitalizeLabel(aiSide)}
+                difficultyOptions={difficultyOptions}
+                humanSide={capitalizeLabel(humanSide)}
+                isEngineThinking={isEngineThinking}
+                latestError={latestError}
+                moveHistory={renderedMoveHistory}
+                onCancelAiMove={cancelAiMove}
+                onDifficultyChange={handleDifficultyChange}
+                onNewGame={startNewGame}
+                onRetryAiMove={canRetryAiMove ? handleRetryAiMove : undefined}
+                selectedDifficulty={aiDifficulty}
+                sideToMove={sideToMoveLabel}
+                status={gameStatusLabel}
+              />
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
