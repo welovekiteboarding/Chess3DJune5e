@@ -19,6 +19,8 @@ import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 import {
   ChessPieceMesh,
   getPieceAccessibleLabel,
+  pieceBaseContactLocalY,
+  pieceGroundingConvention,
   pieceMarkerByType,
 } from './pieces';
 
@@ -68,9 +70,10 @@ type BoardSquareScreenPositions = Partial<
 
 const boardSquares = createBoardSquares();
 const squareSize = 1;
+const boardSquareHeight = 0.18;
 const boardHalfSpan = 3.5;
 const boardRotationRadians = -0.72;
-const boardSquareSurfaceY = 0.11;
+const boardSquareSurfaceY = boardSquareHeight / 2;
 const minCameraDistance = 4.8;
 const maxCameraDistance = 16.8;
 const minCameraPolar = 0.1;
@@ -270,7 +273,7 @@ export function BoardScene({
                   position={[x, 0, z]}
                   receiveShadow
                 >
-                  <boxGeometry args={[squareSize, 0.18, squareSize]} />
+                  <boxGeometry args={[squareSize, boardSquareHeight, squareSize]} />
                   <meshStandardMaterial color={materialColor} />
                 </mesh>
               );
@@ -454,7 +457,13 @@ export function BoardScene({
         <ul aria-label="Piece placements">
           {piecePlacements.map((piecePlacement) => (
             <li
+              data-board-surface-y={formatGroundingValue(boardSquareSurfaceY)}
               data-color={piecePlacement.color}
+              data-grounding-convention={pieceGroundingConvention}
+              data-local-base-y={formatGroundingValue(pieceBaseContactLocalY)}
+              data-placement-y={formatGroundingValue(
+                getGroundedPiecePlacementY(),
+              )}
               data-piece-marker={pieceMarkerByType[piecePlacement.piece]}
               data-piece={piecePlacement.piece}
               data-render-id={piecePlacement.renderId}
@@ -615,11 +624,19 @@ function getPiecePosition(square: ChessSquare): [number, number, number] {
   const boardSquare = boardSquares.find((entry) => entry.square === square);
 
   if (!boardSquare) {
-    return [0, 0.35, 0];
+    return [0, getGroundedPiecePlacementY(), 0];
   }
 
   const [x, z] = getSquarePosition(boardSquare);
-  return [x, 0.35, z];
+  return [x, getGroundedPiecePlacementY(), z];
+}
+
+function getGroundedPiecePlacementY() {
+  return boardSquareSurfaceY - pieceBaseContactLocalY;
+}
+
+function formatGroundingValue(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function getSquareColor({

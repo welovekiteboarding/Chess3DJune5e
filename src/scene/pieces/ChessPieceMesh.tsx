@@ -5,7 +5,10 @@ import type {
   ChessPiecePlacement,
   ChessSquare,
 } from '../../chess/chessTypes';
-import { getPieceAccessibleLabel } from './pieceMetadata';
+import {
+  getPieceAccessibleLabel,
+  pieceBaseContactLocalY,
+} from './pieceMetadata';
 
 interface ChessPieceMeshProps {
   onSelect?: (square: ChessSquare) => void;
@@ -84,11 +87,19 @@ export function ChessPieceMesh({
 function PieceBase({ palette }: { palette: PiecePalette }) {
   return (
     <>
-      <mesh castShadow receiveShadow position={[0, 0.08, 0]}>
+      <mesh
+        castShadow
+        receiveShadow
+        position={[0, pieceBaseContactLocalY + 0.08, 0]}
+      >
         <cylinderGeometry args={[0.34, 0.28, 0.16, 28]} />
         <meshStandardMaterial color={palette.trim} roughness={0.45} />
       </mesh>
-      <mesh castShadow receiveShadow position={[0, 0.18, 0]}>
+      <mesh
+        castShadow
+        receiveShadow
+        position={[0, pieceBaseContactLocalY + 0.18, 0]}
+      >
         <cylinderGeometry args={[0.24, 0.3, 0.08, 28]} />
         <meshStandardMaterial color={palette.body} roughness={0.38} />
       </mesh>
