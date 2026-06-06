@@ -35,6 +35,7 @@ describe('GamePanel', () => {
     expect(
       screen.getByText('Latest error: Engine lost connection.'),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('move-history-scroll')).toBeInTheDocument();
   });
 
   it('announces the latest engine error through an accessible alert region', () => {
@@ -233,5 +234,32 @@ describe('GamePanel', () => {
     );
 
     expect(screen.getByText('Engine idle')).toBeInTheDocument();
+  });
+
+  it('keeps long move history inside a dedicated scroll region so controls remain separate', () => {
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        moveHistory={Array.from({ length: 80 }, (_, index) => `${index + 1}. human e2e4`)}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="White to move"
+        status="Ongoing"
+      />,
+    );
+
+    const historySection = screen.getByTestId('move-history-section');
+    const historyScroll = screen.getByTestId('move-history-scroll');
+    const moveHistoryList = screen.getByTestId('move-history-list');
+
+    expect(historySection).toHaveClass('game-panel__history');
+    expect(historyScroll).toHaveClass('game-panel__history-scroll');
+    expect(moveHistoryList).toHaveClass('game-panel__history-list');
+    expect(screen.getAllByRole('listitem')).toHaveLength(80);
+    expect(screen.getByRole('button', { name: 'New game' })).toBeVisible();
+    expect(screen.getByLabelText('AI difficulty')).toBeVisible();
   });
 });
