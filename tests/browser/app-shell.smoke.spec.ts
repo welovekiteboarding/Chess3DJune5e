@@ -76,6 +76,37 @@ async function clickRenderedSquare(squareHitTarget: Locator) {
   await squareHitTarget.click();
 }
 
+async function waitForPieceAnimationToSettle(piece: Locator) {
+  await expect(piece).toHaveAttribute('data-animation-state', 'idle', {
+    timeout: 5000,
+  });
+}
+
+async function waitForPieceAnimationsToComplete(
+  page: Page,
+  { expectMotion = false }: { expectMotion?: boolean } = {},
+) {
+  const pieceAnimationState = page.getByTestId('board-piece-animation-state');
+
+  if (expectMotion) {
+    await expect
+      .poll(
+        async () =>
+          Number(
+            await pieceAnimationState.getAttribute('data-active-piece-animations'),
+          ),
+        { timeout: 5000 },
+      )
+      .toBeGreaterThan(0);
+  }
+
+  await expect(pieceAnimationState).toHaveAttribute(
+    'data-active-piece-animations',
+    '0',
+    { timeout: 5000 },
+  );
+}
+
 async function expectMoveHistoryEntry(
   page: Page,
   index: number,
@@ -168,6 +199,9 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   );
 
   await clickRenderedSquare(e4HitTarget);
+  await waitForPieceAnimationToSettle(
+    page.getByTestId('board-piece-white-pawn-e4'),
+  );
 
   await expect(e2Square).toHaveAttribute('data-piece', 'empty');
   await expect(e4Square).toHaveAttribute('data-piece', 'white pawn');
@@ -177,6 +211,7 @@ test('keeps the board flat while orbiting, clamps wheel zoom to useful bounds, a
   });
   await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+  await waitForPieceAnimationsToComplete(page);
 
   await boardCanvasShell.hover();
 
@@ -369,6 +404,9 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   );
 
   await clickRenderedSquare(e4HitTarget);
+  await waitForPieceAnimationToSettle(
+    page.getByTestId('board-piece-white-pawn-e4'),
+  );
 
   await expect(e2Square).toHaveAttribute('data-piece', 'empty');
   await expect(e4Square).toHaveAttribute('data-piece', 'white pawn');
@@ -381,6 +419,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   });
   await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+  await waitForPieceAnimationsToComplete(page);
 
   const aiMoveText = await page
     .locator('[data-testid="move-history-item"][data-move-index="1"]')
@@ -412,6 +451,9 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(f3Square).toHaveAttribute('data-legal-destination', 'true');
 
   await clickRenderedSquare(f3HitTarget);
+  await waitForPieceAnimationToSettle(
+    page.getByTestId('board-piece-white-knight-f3'),
+  );
 
   await expect(g1Square).toHaveAttribute('data-piece', 'empty');
   await expect(f3Square).toHaveAttribute('data-piece', 'white knight');
@@ -421,6 +463,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   });
   await expectMoveHistoryEntry(page, 3, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+  await waitForPieceAnimationsToComplete(page);
 
   await page.getByRole('button', { name: 'Zoom out' }).click();
   await page.getByRole('button', { name: 'Reset view' }).click();

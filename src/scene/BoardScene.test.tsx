@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 import {
@@ -458,6 +458,94 @@ describe('BoardScene', () => {
       expect(piece).toHaveAttribute('data-board-surface-y', '0.09');
       expect(piece).toHaveAttribute('data-placement-y', '0.09');
     });
+  });
+
+  it('animates a normal piece move while keeping logical square state authoritative', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-square-e2')).toHaveAttribute(
+        'data-piece',
+        'empty',
+      );
+      expect(screen.getByTestId('board-square-e4')).toHaveAttribute(
+        'data-piece',
+        'white pawn',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-from-square',
+        'e2',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-to-square',
+        'e4',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-placement-y',
+        '0.09',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   it('removes structural legal-destination markers when no legal squares are provided', () => {
