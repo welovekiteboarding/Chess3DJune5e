@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -14,6 +15,13 @@ import {
   getPiecePlacementsFromFen,
 } from '../chess/chessRules';
 import { BoardScene, type BoardSceneCanvasProps } from './BoardScene';
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  cleanup();
+});
 
 function TestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
   return (
