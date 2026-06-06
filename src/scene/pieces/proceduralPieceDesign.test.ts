@@ -45,6 +45,19 @@ describe('proceduralPieceDesign', () => {
     expect(king.topFeatureCount).toBeGreaterThanOrEqual(queen.topFeatureCount);
   });
 
+  it('keeps the royal and major-piece silhouettes clearly separated from the placeholders', () => {
+    const king = getProceduralPieceProfile('king');
+    const queen = getProceduralPieceProfile('queen');
+    const bishop = getProceduralPieceProfile('bishop');
+    const rook = getProceduralPieceProfile('rook');
+    const knight = getProceduralPieceProfile('knight');
+
+    expect(king.totalHeight - queen.totalHeight).toBeGreaterThanOrEqual(0.1);
+    expect(king.crownFeatureCount).toBeGreaterThan(queen.crownFeatureCount);
+    expect(bishop.totalHeight - rook.totalHeight).toBeGreaterThanOrEqual(0.1);
+    expect(knight.forwardReach).toBeGreaterThanOrEqual(0.24);
+  });
+
   it('keeps piece landmarks readable from multiple camera angles', () => {
     expect(getProceduralPieceProfile('rook').crownFeatureCount).toBe(4);
     expect(getProceduralPieceProfile('queen').crownFeatureCount).toBe(5);
