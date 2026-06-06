@@ -238,28 +238,41 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 test('keeps the board visible and scrolls long move history inside the controls panel', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?e2e-fixture=1');
   await expect(page.getByTestId('move-history-section')).toBeVisible();
   await expect(page.getByTestId('move-history-scroll')).toBeVisible();
+  await page.waitForFunction(() =>
+    Boolean(
+      (
+        window as Window & {
+          __CHESS3D_E2E__?: unknown;
+        }
+      ).__CHESS3D_E2E__,
+    ),
+  );
 
-  await page.evaluate(() => {
-    const historySection = document.querySelector('[data-testid="move-history-scroll"]');
+  await page.evaluate((fixtureMoves) => {
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        setMoveHistoryFixture: (moves: readonly string[]) => void;
+      };
+    };
 
-    if (!(historySection instanceof HTMLElement)) {
-      throw new Error('Move history scroll container not found');
+    if (!appWindow.__CHESS3D_E2E__) {
+      throw new Error('Browser fixture hook not found');
     }
 
-    historySection.innerHTML = `
-      <ol>
-        ${Array.from({ length: 80 }, (_, index) => `<li>${index + 1}. human e2e4</li>`).join('')}
-      </ol>
-    `;
-  });
+    appWindow.__CHESS3D_E2E__.setMoveHistoryFixture(fixtureMoves);
+  }, Array.from({ length: 80 }, (_, index) => `${index + 1}. human e2e4`));
+
+  await expect(page.getByTestId('move-history-item')).toHaveCount(80);
 
   const layoutMetrics = await page.evaluate(() => {
     const boardRegion = document.querySelector('[data-testid="board-region"]');
     const panelScroll = document.querySelector('[data-testid="panel-scroll"]');
     const historySection = document.querySelector('[data-testid="move-history-scroll"]');
+    const moveHistoryList = document.querySelector('[data-testid="move-history-list"]');
 
     if (!(boardRegion instanceof HTMLElement)) {
       throw new Error('Board region not found');
@@ -273,12 +286,18 @@ test('keeps the board visible and scrolls long move history inside the controls 
       throw new Error('Move history section not found');
     }
 
+    if (!(moveHistoryList instanceof HTMLOListElement)) {
+      throw new Error('Move history list not found');
+    }
+
     const boardRect = boardRegion.getBoundingClientRect();
 
     return {
       boardBottom: boardRect.bottom,
       documentScrollHeight: document.documentElement.scrollHeight,
+      historyClientHeight: historySection.clientHeight,
       historyScrollHeight: historySection.scrollHeight,
+      moveCount: moveHistoryList.childElementCount,
       panelClientHeight: panelScroll.clientHeight,
       panelScrollHeight: panelScroll.scrollHeight,
       viewportHeight: window.innerHeight,
@@ -289,10 +308,11 @@ test('keeps the board visible and scrolls long move history inside the controls 
     layoutMetrics.viewportHeight,
   );
   expect(layoutMetrics.boardBottom).toBeLessThanOrEqual(layoutMetrics.viewportHeight);
-  expect(layoutMetrics.panelScrollHeight).toBeGreaterThan(
+  expect(layoutMetrics.panelScrollHeight).toBeLessThanOrEqual(
     layoutMetrics.panelClientHeight,
   );
+  expect(layoutMetrics.moveCount).toBe(80);
   expect(layoutMetrics.historyScrollHeight).toBeGreaterThan(
-    layoutMetrics.panelClientHeight,
+    layoutMetrics.historyClientHeight,
   );
 });
