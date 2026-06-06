@@ -106,6 +106,7 @@ type BoardSquareScreenPositions = Partial<
 >;
 
 const boardSquares = createBoardSquares();
+const emptyPiecePlacements: readonly ChessPiecePlacement[] = [];
 const squareSize = boardGeometry.squareSize;
 const boardSquareHeight = boardGeometry.squareHeight;
 const boardHalfSpan = boardGeometry.boardHalfSpan;
@@ -224,7 +225,7 @@ function DefaultBoardSceneCanvas({
 export function BoardScene({
   selectedSquare,
   legalDestinationSquares,
-  piecePlacements = [],
+  piecePlacements = emptyPiecePlacements,
   onSquareSelect,
   CanvasBoundary = DefaultBoardSceneCanvas,
   className,
@@ -294,7 +295,7 @@ export function BoardScene({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previousPiecePlacements = previousPiecePlacementsRef.current;
     previousPiecePlacementsRef.current = piecePlacements;
 

@@ -7,6 +7,8 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
+import { flushSync } from 'react-dom';
+import { createRoot, type Root } from 'react-dom/client';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 import {
@@ -614,6 +616,62 @@ describe('BoardScene', () => {
     } finally {
       vi.clearAllTimers();
       vi.useRealTimers();
+    }
+  });
+
+  it('publishes running move-transition metadata in the committed move render', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | null = createRoot(container);
+
+    try {
+      flushSync(() => {
+        root?.render(
+          <BoardScene
+            CanvasBoundary={TestCanvasBoundary}
+            legalDestinationSquares={[]}
+            piecePlacements={[
+              {
+                renderId: 'white-pawn-e2',
+                square: 'e2',
+                piece: 'pawn',
+                color: 'white',
+              },
+            ]}
+            selectedSquare={null}
+          />,
+        );
+      });
+
+      flushSync(() => {
+        root?.render(
+          <BoardScene
+            CanvasBoundary={TestCanvasBoundary}
+            legalDestinationSquares={[]}
+            piecePlacements={[
+              {
+                renderId: 'white-pawn-e4',
+                square: 'e4',
+                piece: 'pawn',
+                color: 'white',
+              },
+            ]}
+            selectedSquare={null}
+          />,
+        );
+      });
+
+      expect(
+        screen.getByTestId('board-piece-white-pawn-e4'),
+      ).toHaveAttribute('data-animation-state', 'running');
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+    } finally {
+      root?.unmount();
+      root = null;
+      container.remove();
     }
   });
 

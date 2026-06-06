@@ -97,7 +97,16 @@ async function clickCameraButton(page: Page, name: string) {
   await cameraButton.dispatchEvent('click');
 }
 
-async function waitForPieceAnimationToSettle(piece: Locator) {
+async function waitForPieceAnimationToSettle(
+  piece: Locator,
+  { expectMotion = false }: { expectMotion?: boolean } = {},
+) {
+  if (expectMotion) {
+    await expect(piece).toHaveAttribute('data-animation-state', 'running', {
+      timeout: 5000,
+    });
+  }
+
   await expect(piece).toHaveAttribute('data-animation-state', 'idle', {
     timeout: 5000,
   });
@@ -107,11 +116,13 @@ async function waitForPieceAtSquareToSettle(
   page: Page,
   square: string,
   color: 'white' | 'black',
+  options?: { expectMotion?: boolean },
 ) {
   await waitForPieceAnimationToSettle(
     page.locator(
       `[data-testid="board-piece"][data-square="${square}"][data-color="${color}"]`,
     ),
+    options,
   );
 }
 
@@ -409,6 +420,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await clickRenderedSquare(page, 'e4');
   await waitForPieceAnimationToSettle(
     page.getByTestId('board-piece-white-pawn-e4'),
+    { expectMotion: true },
   );
 
   await expect(e2Square).toHaveAttribute('data-piece', 'empty');
@@ -457,6 +469,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await clickRenderedSquare(page, 'f3');
   await waitForPieceAnimationToSettle(
     page.getByTestId('board-piece-white-knight-f3'),
+    { expectMotion: true },
   );
 
   await expect(g1Square).toHaveAttribute('data-piece', 'empty');
