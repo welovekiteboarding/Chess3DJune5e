@@ -177,9 +177,21 @@ export function App({
             data-testid="board-region"
             role="region"
           >
-            <div className="card-chrome">
-              <span>Primary board</span>
+            <div className="card-chrome card-chrome--board">
+              <div className="card-chrome__cluster">
+                <span>Primary board</span>
+                <strong>Hero viewport</strong>
+              </div>
               <span>{sideToMoveLabel}</span>
+            </div>
+            <div className="board-region__intro">
+              <div className="board-region__intro-copy">
+                <p className="board-region__eyebrow">Command surface</p>
+                <p className="board-region__title">Human vs Stockfish</p>
+              </div>
+              <p className="board-region__badge">
+                {isEngineThinking ? 'Engine active' : 'Engine ready'}
+              </p>
             </div>
             <BoardScene
               CanvasBoundary={boardSceneCanvasBoundary}
@@ -197,8 +209,11 @@ export function App({
             data-testid="panel-region"
             role="region"
           >
-            <div className="card-chrome">
-              <span>Command deck</span>
+            <div className="card-chrome card-chrome--panel">
+              <div className="card-chrome__cluster">
+                <span>Command deck</span>
+                <strong>Telemetry + controls</strong>
+              </div>
               <span>{isEngineThinking ? 'Engine online' : 'Engine standing by'}</span>
             </div>
             <div className="panel-scroll" data-testid="panel-scroll">

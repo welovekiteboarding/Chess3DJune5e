@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { GamePanel } from './GamePanel';
@@ -62,6 +62,36 @@ describe('GamePanel', () => {
       'data-move-value',
       '2. Nf3 Nc6',
     );
+  });
+
+  it('surfaces quick cockpit telemetry for turn, seats, and engine state', () => {
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        isEngineThinking
+        moveHistory={[]}
+        onDifficultyChange={() => {}}
+        onNewGame={() => {}}
+        selectedDifficulty="medium"
+        sideToMove="White to move"
+        status="Ongoing"
+      />,
+    );
+
+    expect(screen.getByTestId('game-panel-telemetry-grid')).toBeInTheDocument();
+    const telemetryItems = screen.getAllByTestId('game-panel-telemetry-item');
+
+    expect(telemetryItems).toHaveLength(4);
+    expect(screen.getByText('Turn')).toBeInTheDocument();
+    expect(screen.getByText('White to move')).toBeInTheDocument();
+    expect(screen.getByText('Human')).toBeInTheDocument();
+    expect(screen.getByText('White')).toBeInTheDocument();
+    expect(screen.getByText('AI seat')).toBeInTheDocument();
+    expect(screen.getByText('Black')).toBeInTheDocument();
+    expect(within(telemetryItems[3]).getByText('Engine')).toBeInTheDocument();
+    expect(within(telemetryItems[3]).getByText('Thinking')).toBeInTheDocument();
   });
 
   it('announces the latest engine error through an accessible alert region', () => {

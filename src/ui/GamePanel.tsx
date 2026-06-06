@@ -50,13 +50,50 @@ export function GamePanel({
     >
       <header className="game-panel__header">
         <div>
-          <p className="game-panel__eyebrow">Match operations</p>
+          <p className="game-panel__eyebrow">Operational console</p>
           <h2 id="game-panel-title">Command deck</h2>
         </div>
         <p className="game-panel__summary">
-          Local-only telemetry, move tracking, and engine controls.
+          Local-only telemetry, move tracking, and engine controls aligned to
+          the active board.
         </p>
       </header>
+
+      <div
+        className="game-panel__telemetry-grid"
+        data-testid="game-panel-telemetry-grid"
+      >
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">Turn</span>
+          <strong className="game-panel__telemetry-value">{sideToMove}</strong>
+        </article>
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">Human</span>
+          <strong className="game-panel__telemetry-value">{humanSide}</strong>
+        </article>
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">AI seat</span>
+          <strong className="game-panel__telemetry-value">{aiSide}</strong>
+        </article>
+        <article
+          className="game-panel__telemetry-item"
+          data-testid="game-panel-telemetry-item"
+        >
+          <span className="game-panel__telemetry-label">Engine</span>
+          <strong className="game-panel__telemetry-value">
+            {isEngineThinking ? 'Thinking' : 'Idle'}
+          </strong>
+        </article>
+      </div>
 
       <div className="game-panel__top-stack" data-testid="game-panel-details">
         <section
