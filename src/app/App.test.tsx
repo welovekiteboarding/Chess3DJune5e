@@ -115,6 +115,48 @@ describe('App', () => {
     expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
   });
 
+  it('allows the browser regression harness to seed long move history through app state', async () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+    const originalUrl = window.location.href;
+    const fixtureMoves = Array.from(
+      { length: 80 },
+      (_, index) => `${index + 1}. human e2e4`,
+    );
+
+    window.history.pushState({}, '', `${window.location.pathname}?e2e-fixture=1`);
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        setMoveHistoryFixture: (moves: readonly string[]) => void;
+      };
+    };
+
+    appWindow.__CHESS3D_E2E__?.setMoveHistoryFixture(fixtureMoves);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId('move-history-item')).toHaveLength(80),
+    );
+
+    expect(screen.getAllByTestId('move-history-item')[0]).toHaveTextContent(
+      '1. human e2e4',
+    );
+    expect(screen.getByTestId('move-history-scroll')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New game' })).toBeVisible();
+    expect(screen.getByLabelText('AI difficulty')).toBeVisible();
+
+    window.history.pushState({}, '', originalUrl);
+  });
+
   it('applies a legal human click-to-move sequence without triggering an AI request', () => {
     const engine = createFakeEngine();
     const store = createGameStore({

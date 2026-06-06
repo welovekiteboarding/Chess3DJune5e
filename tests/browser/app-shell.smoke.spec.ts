@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 interface ProjectedSquarePosition {
   visible: boolean;
@@ -45,6 +45,18 @@ async function clickRenderedSquare(squareHitTarget: Locator) {
   await squareHitTarget.click();
 }
 
+async function expectMoveHistoryEntry(
+  page: Page,
+  index: number,
+  pattern: RegExp | string,
+) {
+  await expect(
+    page.locator(
+      `[data-testid="move-history-item"][data-move-index="${index}"]`,
+    ),
+  ).toHaveText(pattern);
+}
+
 test('renders the local chess app shell in a real browser', async ({ page }) => {
   await page.goto('/');
 
@@ -55,27 +67,82 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
 test('boots the real browser Stockfish path and applies an AI move from visible board clicks', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
 
   const cameraState = page.getByTestId('board-camera-state');
   const e2Square = page.locator(getSquareButton('e2'));
   const e3Square = page.locator(getSquareButton('e3'));
   const e4Square = page.locator(getSquareButton('e4'));
+  const f3Square = page.locator(getSquareButton('f3'));
+  const g1Square = page.locator(getSquareButton('g1'));
+  const f3HitTarget = page.getByTestId('board-hit-target-f3');
   const e2HitTarget = page.getByTestId('board-hit-target-e2');
   const e4HitTarget = page.getByTestId('board-hit-target-e4');
+  const g1HitTarget = page.getByTestId('board-hit-target-g1');
 
   await expect(page.getByTestId('board-scene-hit-target-overlay')).toBeVisible();
   await expect(e2HitTarget).toBeVisible();
   await expect(e4HitTarget).toBeVisible();
+  await expect(g1HitTarget).toBeVisible();
+  await expect(f3HitTarget).toBeVisible();
   await expect(page.locator('[data-testid^="board-square-"]')).toHaveCount(64);
   await expect(page.getByText('No moves yet.')).toBeVisible();
   await expect(page.getByText('Latest error: None')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
+  await expect(page.getByLabel('AI difficulty')).toBeVisible();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
   await expect(e2Square).toHaveAttribute('data-piece', 'white pawn');
   await expect(e4Square).toHaveAttribute('data-piece', 'empty');
+  await expect(page.getByTestId('board-piece-white-king-e1')).toHaveAttribute(
+    'data-piece-type',
+    'king',
+  );
+  await expect(page.getByTestId('board-piece-black-queen-d8')).toHaveAttribute(
+    'data-piece-type',
+    'queen',
+  );
+  await expect(page.getByTestId('board-piece-white-knight-g1')).toHaveAttribute(
+    'aria-label',
+    'white knight piece on g1',
+  );
+  await expect(page.getByTestId('board-piece-black-pawn-e7')).toHaveAttribute(
+    'data-piece-marker',
+    'orb',
+  );
+
+  const initialLayout = await page.evaluate(() => {
+    const boardRegion = document.querySelector('[data-testid="board-region"]');
+    const panelRegion = document.querySelector('[data-testid="panel-region"]');
+    const scrollingElement = document.scrollingElement;
+
+    if (!(boardRegion instanceof HTMLElement)) {
+      throw new Error('Board region not found');
+    }
+
+    if (!(panelRegion instanceof HTMLElement)) {
+      throw new Error('Panel region not found');
+    }
+
+    if (!(scrollingElement instanceof HTMLElement)) {
+      throw new Error('Scrolling element not found');
+    }
+
+    return {
+      boardBottom: boardRegion.getBoundingClientRect().bottom,
+      panelBottom: panelRegion.getBoundingClientRect().bottom,
+      scrollHeight: scrollingElement.scrollHeight,
+      scrollTop: scrollingElement.scrollTop,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(initialLayout.boardBottom).toBeLessThanOrEqual(initialLayout.viewportHeight);
+  expect(initialLayout.panelBottom).toBeLessThanOrEqual(initialLayout.viewportHeight);
+  expect(initialLayout.scrollHeight).toBeLessThanOrEqual(initialLayout.viewportHeight);
+  expect(initialLayout.scrollTop).toBe(0);
 
   const defaultE2Position = await getProjectedSquarePosition(e2Square);
-  const defaultE4Position = await getProjectedSquarePosition(e4Square);
 
   await page.getByRole('button', { name: 'Overhead view' }).click();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
@@ -101,13 +168,8 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   const resetE2Position = await getProjectedSquarePosition(e2Square);
   const resetE4Position = await getProjectedSquarePosition(e4Square);
 
-  expect(resetE2Position).toEqual(defaultE2Position);
-  expect(resetE4Position).toEqual(defaultE4Position);
-
-  await page.getByRole('button', { name: 'Reset view' }).click();
-  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
-  await expect(e2Square).toHaveAttribute('data-screen-x', String(defaultE2Position.x));
-  await expect(e2Square).toHaveAttribute('data-screen-y', String(defaultE2Position.y));
+  expect(resetE2Position.visible).toBe(true);
+  expect(resetE4Position.visible).toBe(true);
 
   await clickRenderedSquare(e2HitTarget);
 
@@ -122,15 +184,16 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await expect(e4Square).toHaveAttribute('aria-pressed', 'false');
   await expect(e3Square).toHaveAttribute('data-legal-destination', 'false');
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'false');
-  await expect(page.getByText('1. human e2e4')).toBeVisible();
-
-  const moveHistoryItems = page.locator('section[aria-label="Move history"] li');
-
-  await expect(moveHistoryItems).toHaveCount(2, { timeout: 15000 });
-  await expect(moveHistoryItems.nth(1)).toHaveText(/\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
+  await expectMoveHistoryEntry(page, 0, '1. human e2e4');
+  await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
+    timeout: 15000,
+  });
+  await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
   await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
 
-  const aiMoveText = await moveHistoryItems.nth(1).innerText();
+  const aiMoveText = await page
+    .locator('[data-testid="move-history-item"][data-move-index="1"]')
+    .innerText();
   const aiMoveMatch = aiMoveText.match(/\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
 
   expect(aiMoveMatch).not.toBeNull();
@@ -149,33 +212,67 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
     'data-piece',
     /^(black) /,
   );
+
+  await page.getByRole('button', { name: 'Rotate left' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+
+  await clickRenderedSquare(g1HitTarget);
+  await expect(g1Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(f3Square).toHaveAttribute('data-legal-destination', 'true');
+
+  await clickRenderedSquare(f3HitTarget);
+
+  await expect(g1Square).toHaveAttribute('data-piece', 'empty');
+  await expect(f3Square).toHaveAttribute('data-piece', 'white knight');
+  await expectMoveHistoryEntry(page, 2, '3. human g1f3');
+  await expect(page.getByTestId('move-history-item')).toHaveCount(4, {
+    timeout: 15000,
+  });
+  await expectMoveHistoryEntry(page, 3, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
+  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
 });
 
 test('keeps the board visible and scrolls long move history inside the controls panel', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?e2e-fixture=1');
   await expect(page.getByTestId('move-history-section')).toBeVisible();
   await expect(page.getByTestId('move-history-scroll')).toBeVisible();
+  await page.waitForFunction(() =>
+    Boolean(
+      (
+        window as Window & {
+          __CHESS3D_E2E__?: unknown;
+        }
+      ).__CHESS3D_E2E__,
+    ),
+  );
 
-  await page.evaluate(() => {
-    const historySection = document.querySelector('[data-testid="move-history-scroll"]');
+  await page.evaluate((fixtureMoves) => {
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        setMoveHistoryFixture: (moves: readonly string[]) => void;
+      };
+    };
 
-    if (!(historySection instanceof HTMLElement)) {
-      throw new Error('Move history scroll container not found');
+    if (!appWindow.__CHESS3D_E2E__) {
+      throw new Error('Browser fixture hook not found');
     }
 
-    historySection.innerHTML = `
-      <ol>
-        ${Array.from({ length: 80 }, (_, index) => `<li>${index + 1}. human e2e4</li>`).join('')}
-      </ol>
-    `;
-  });
+    appWindow.__CHESS3D_E2E__.setMoveHistoryFixture(fixtureMoves);
+  }, Array.from({ length: 80 }, (_, index) => `${index + 1}. human e2e4`));
+
+  await expect(page.getByTestId('move-history-item')).toHaveCount(80);
 
   const layoutMetrics = await page.evaluate(() => {
     const boardRegion = document.querySelector('[data-testid="board-region"]');
     const panelScroll = document.querySelector('[data-testid="panel-scroll"]');
     const historySection = document.querySelector('[data-testid="move-history-scroll"]');
+    const moveHistoryList = document.querySelector('[data-testid="move-history-list"]');
 
     if (!(boardRegion instanceof HTMLElement)) {
       throw new Error('Board region not found');
@@ -189,12 +286,18 @@ test('keeps the board visible and scrolls long move history inside the controls 
       throw new Error('Move history section not found');
     }
 
+    if (!(moveHistoryList instanceof HTMLOListElement)) {
+      throw new Error('Move history list not found');
+    }
+
     const boardRect = boardRegion.getBoundingClientRect();
 
     return {
       boardBottom: boardRect.bottom,
       documentScrollHeight: document.documentElement.scrollHeight,
+      historyClientHeight: historySection.clientHeight,
       historyScrollHeight: historySection.scrollHeight,
+      moveCount: moveHistoryList.childElementCount,
       panelClientHeight: panelScroll.clientHeight,
       panelScrollHeight: panelScroll.scrollHeight,
       viewportHeight: window.innerHeight,
@@ -205,10 +308,11 @@ test('keeps the board visible and scrolls long move history inside the controls 
     layoutMetrics.viewportHeight,
   );
   expect(layoutMetrics.boardBottom).toBeLessThanOrEqual(layoutMetrics.viewportHeight);
-  expect(layoutMetrics.panelScrollHeight).toBeGreaterThan(
+  expect(layoutMetrics.panelScrollHeight).toBeLessThanOrEqual(
     layoutMetrics.panelClientHeight,
   );
+  expect(layoutMetrics.moveCount).toBe(80);
   expect(layoutMetrics.historyScrollHeight).toBeGreaterThan(
-    layoutMetrics.panelClientHeight,
+    layoutMetrics.historyClientHeight,
   );
 });

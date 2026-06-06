@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 
 import '../styles/globals.css';
@@ -16,6 +16,15 @@ const difficultyOptions: readonly GamePanelDifficultyOption[] =
     value,
     label: capitalizeLabel(value),
   }));
+const browserFixtureSearchParam = 'e2e-fixture';
+
+declare global {
+  interface Window {
+    __CHESS3D_E2E__?: {
+      setMoveHistoryFixture: (moves: readonly string[]) => void;
+    };
+  }
+}
 
 export interface AppProps {
   autoRequestAiMoves?: boolean;
@@ -28,6 +37,7 @@ export function App({
   boardSceneCanvasBoundary,
   store,
 }: AppProps) {
+  const isBrowserFixtureEnabled = hasBrowserFixtureFlag();
   const {
     aiDifficulty,
     aiSide,
@@ -51,11 +61,15 @@ export function App({
     sideToMoveLabel,
     startNewGame,
   } = useStore(store, (state) => state);
+  const [moveHistoryFixture, setMoveHistoryFixture] = useState<
+    readonly string[] | null
+  >(null);
 
   const piecePlacements = getPiecePlacementsFromFen(currentFen);
   const moveHistoryLabels = moveHistory.map((move, index) =>
     `${index + 1}. ${move.player} ${move.uci}`,
   );
+  const renderedMoveHistory = moveHistoryFixture ?? moveHistoryLabels;
 
   useEffect(() => {
     if (!autoRequestAiMoves) {
@@ -86,6 +100,22 @@ export function App({
     requestAiMove,
     sideToMove,
   ]);
+
+  useEffect(() => {
+    if (!isBrowserFixtureEnabled) {
+      return;
+    }
+
+    window.__CHESS3D_E2E__ = {
+      setMoveHistoryFixture(moves) {
+        setMoveHistoryFixture([...moves]);
+      },
+    };
+
+    return () => {
+      delete window.__CHESS3D_E2E__;
+    };
+  }, [isBrowserFixtureEnabled]);
 
   function handleSquareSelect(square: ChessSquare) {
     handleBoardSquareSelect(store, square);
@@ -165,7 +195,7 @@ export function App({
               humanSide={capitalizeLabel(humanSide)}
               isEngineThinking={isEngineThinking}
               latestError={latestError}
-              moveHistory={moveHistoryLabels}
+              moveHistory={renderedMoveHistory}
               onCancelAiMove={cancelAiMove}
               onDifficultyChange={handleDifficultyChange}
               onNewGame={startNewGame}
@@ -230,4 +260,14 @@ function shouldAutoRequestAiMove({
 
 function capitalizeLabel(value: string): string {
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
+}
+
+function hasBrowserFixtureFlag() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return new URLSearchParams(window.location.search).has(
+    browserFixtureSearchParam,
+  );
 }

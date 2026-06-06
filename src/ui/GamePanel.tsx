@@ -63,6 +63,7 @@ export function GamePanel({
       <div
         aria-label="Current game details"
         className="game-panel__details"
+        data-testid="game-panel-details"
       >
         <p style={{ margin: 0 }}>Status: {status}</p>
         <p style={{ margin: 0 }}>Side to move: {sideToMove}</p>
@@ -89,6 +90,7 @@ export function GamePanel({
       <div
         aria-label="Game controls"
         className="game-panel__controls"
+        data-testid="game-panel-controls"
       >
         <label
           className="game-panel__field"
@@ -144,8 +146,15 @@ export function GamePanel({
         >
           {moveHistory.length > 0 ? (
             <ol className="game-panel__history-list" data-testid="move-history-list">
-              {moveHistory.map((move) => (
-                <li key={move}>{move}</li>
+              {moveHistory.map((move, index) => (
+                <li
+                  data-move-index={index}
+                  data-move-value={move}
+                  data-testid="move-history-item"
+                  key={`${index}-${move}`}
+                >
+                  {move}
+                </li>
               ))}
             </ol>
           ) : (
