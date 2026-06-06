@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
 import { createGameStore } from '../game/gameStore';
 import type { BoardSceneCanvasProps } from '../scene/BoardScene';
-import { App, handleBoardSquareSelect } from './App';
+import { App } from './App';
 
 function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
   return <div data-testid="board-scene-canvas">{children}</div>;
@@ -75,6 +75,44 @@ describe('App', () => {
       'e4',
     );
     expect(screen.queryByTestId('legal-destination-square-e5')).not.toBeInTheDocument();
+  });
+
+  it('keeps visible-board move interaction working after camera controls are used', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overhead view' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
+
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'default',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+      'data-square',
+      'e4',
+    );
+    expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
   });
 
   it('applies a legal human click-to-move sequence without triggering an AI request', () => {
@@ -345,9 +383,17 @@ describe('App', () => {
       engine: createFakeEngine(),
     });
 
-    handleBoardSquareSelect(store, 'e2');
-    handleBoardSquareSelect(store, 'e4');
-    handleBoardSquareSelect(store, 'e4');
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
 
     expect(store.getState().moveHistory).toEqual([
       {

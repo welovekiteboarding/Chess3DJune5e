@@ -179,7 +179,7 @@ export function App({
   );
 }
 
-export function handleBoardSquareSelect(store: GameStore, square: ChessSquare) {
+function handleBoardSquareSelect(store: GameStore, square: ChessSquare) {
   const state = store.getState();
 
   if (state.selectedSquare === square) {
