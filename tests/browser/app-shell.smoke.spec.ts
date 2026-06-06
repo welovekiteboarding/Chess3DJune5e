@@ -41,6 +41,10 @@ async function getProjectedSquarePosition(
   });
 }
 
+async function getCameraDistance(cameraState: Locator): Promise<number> {
+  return Number(await cameraState.getAttribute('data-distance'));
+}
+
 async function clickRenderedSquare(squareHitTarget: Locator) {
   await squareHitTarget.click();
 }
@@ -152,8 +156,22 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   expect(overheadE2Position).not.toEqual(defaultE2Position);
 
-  await page.getByRole('button', { name: 'Zoom in' }).click();
+  const boardCanvasShell = page.getByTestId('board-scene-canvas-shell');
+  const defaultDistance = await getCameraDistance(cameraState);
+
+  await boardCanvasShell.hover();
+  await page.mouse.wheel(0, 220);
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await expect
+    .poll(async () => getCameraDistance(cameraState))
+    .toBeGreaterThan(defaultDistance);
+
+  const zoomedOutDistance = await getCameraDistance(cameraState);
+
+  await page.mouse.wheel(0, -320);
+  await expect
+    .poll(async () => getCameraDistance(cameraState))
+    .toBeLessThan(zoomedOutDistance);
 
   const zoomedE2Position = await getProjectedSquarePosition(e2Square);
   const zoomedE4Position = await getProjectedSquarePosition(e4Square);
@@ -234,6 +252,7 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
   await page.getByRole('button', { name: 'Zoom out' }).click();
   await page.getByRole('button', { name: 'Reset view' }).click();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  expect(await getCameraDistance(cameraState)).toBeCloseTo(10.4, 1);
 });
 
 test('keeps every piece grounded under a side-view camera using deterministic scene data', async ({

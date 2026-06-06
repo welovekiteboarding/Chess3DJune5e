@@ -73,13 +73,14 @@ const squareSize = 1;
 const boardSquareHeight = 0.18;
 const boardHalfSpan = 3.5;
 const boardSquareSurfaceY = boardSquareHeight / 2;
-const minCameraDistance = 4.8;
-const maxCameraDistance = 16.8;
+const minCameraDistance = 3.6;
+const maxCameraDistance = 24;
 const minCameraPolar = 0.1;
 const maxCameraPolar = 1.36;
 const cameraRotateStep = Math.PI / 8;
 const cameraTiltStep = 0.12;
 const cameraZoomStep = 1.1;
+const wheelZoomSensitivity = 0.0018;
 const cameraViewModeTolerance = {
   azimuth: 0.04,
   distance: 0.12,
@@ -210,11 +211,17 @@ export function BoardScene({
     forwardSecondaryPointerDownToCanvas(canvasShellRef.current, event);
   }
 
-  function handleInteractionHitTargetOverlayWheelCapture(
+  function handleCanvasShellWheelCapture(
     event: ReactWheelEvent<HTMLDivElement>,
   ) {
     event.preventDefault();
-    forwardWheelToCanvas(canvasShellRef.current, event);
+
+    setCameraView((currentCameraView) =>
+      getNextCameraViewFromWheelDelta(currentCameraView, {
+        deltaMode: event.deltaMode,
+        deltaY: event.deltaY,
+      }),
+    );
   }
 
   return (
@@ -227,6 +234,7 @@ export function BoardScene({
         className="board-scene-canvas-shell"
         data-testid="board-scene-canvas-shell"
         onContextMenu={(event) => event.preventDefault()}
+        onWheelCapture={handleCanvasShellWheelCapture}
         ref={canvasShellRef}
       >
         <CanvasBoundary
@@ -295,7 +303,6 @@ export function BoardScene({
           className="board-scene-hit-target-overlay"
           data-testid="board-scene-hit-target-overlay"
           onMouseDownCapture={handleInteractionHitTargetOverlayMouseDownCapture}
-          onWheelCapture={handleInteractionHitTargetOverlayWheelCapture}
           ref={interactionHitTargetOverlayRef}
           style={interactionHitTargetOverlayStyle}
         >
@@ -391,6 +398,9 @@ export function BoardScene({
         <p
           aria-live="polite"
           className="board-scene-camera-status"
+          data-azimuth={cameraView.azimuth}
+          data-distance={cameraView.distance}
+          data-polar={cameraView.polar}
           data-testid="board-camera-state"
           data-view-mode={cameraView.viewMode}
           role="status"
@@ -585,6 +595,7 @@ function BoardSceneCameraRig({
       dampingFactor={0.09}
       enableDamping
       enablePan={false}
+      enableZoom={false}
       makeDefault
       maxDistance={maxCameraDistance}
       maxPolarAngle={maxCameraPolar}
@@ -592,7 +603,7 @@ function BoardSceneCameraRig({
       minPolarAngle={minCameraPolar}
       mouseButtons={{
         LEFT: MOUSE.ROTATE,
-        MIDDLE: MOUSE.DOLLY,
+        MIDDLE: MOUSE.ROTATE,
         RIGHT: MOUSE.ROTATE,
       }}
       onChange={handleControlsChange}
@@ -739,6 +750,39 @@ function createCustomCameraView(
   };
 }
 
+function getNextCameraViewFromWheelDelta(
+  currentCameraView: BoardCameraView,
+  wheelDelta: {
+    deltaMode: number;
+    deltaY: number;
+  },
+): BoardCameraView {
+  if (wheelDelta.deltaY === 0) {
+    return currentCameraView;
+  }
+
+  const normalizedDelta = clamp(
+    normalizeWheelDeltaToPixels(wheelDelta.deltaY, wheelDelta.deltaMode),
+    -240,
+    240,
+  );
+  const nextDistance = clamp(
+    roundToTwoDecimals(
+      currentCameraView.distance * Math.exp(normalizedDelta * wheelZoomSensitivity),
+    ),
+    minCameraDistance,
+    maxCameraDistance,
+  );
+
+  if (nextDistance === currentCameraView.distance) {
+    return currentCameraView;
+  }
+
+  return createCustomCameraView(currentCameraView, {
+    distance: nextDistance,
+  });
+}
+
 function getCameraPosition(cameraView: BoardCameraView): [number, number, number] {
   const horizontalDistance = Math.sin(cameraView.polar) * cameraView.distance;
 
@@ -870,33 +914,19 @@ function forwardSecondaryPointerDownToCanvas(
   );
 }
 
-function forwardWheelToCanvas(
-  canvasShellElement: HTMLDivElement | null,
-  event: ReactWheelEvent<HTMLDivElement>,
-) {
-  const canvasElement = canvasShellElement?.querySelector('canvas');
-
-  if (!canvasElement) {
-    return;
-  }
-
-  canvasElement.dispatchEvent(
-    new WheelEvent('wheel', {
-      bubbles: true,
-      cancelable: true,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      composed: true,
-      deltaMode: event.deltaMode,
-      deltaX: event.deltaX,
-      deltaY: event.deltaY,
-      deltaZ: event.deltaZ,
-    }),
-  );
-}
-
 function clamp(value: number, minValue: number, maxValue: number): number {
   return Math.min(Math.max(value, minValue), maxValue);
+}
+
+function normalizeWheelDeltaToPixels(deltaY: number, deltaMode: number): number {
+  switch (deltaMode) {
+    case WheelEvent.DOM_DELTA_LINE:
+      return deltaY * 16;
+    case WheelEvent.DOM_DELTA_PAGE:
+      return deltaY * 320;
+    default:
+      return deltaY;
+  }
 }
 
 function normalizeAngle(angle: number): number {
