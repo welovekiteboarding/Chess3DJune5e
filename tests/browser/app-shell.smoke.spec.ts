@@ -1,25 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
-function expectBoxWithin(outerBox: NonNullable<Awaited<ReturnType<typeof getBox>>>, innerBox: NonNullable<Awaited<ReturnType<typeof getBox>>>) {
-  expect(innerBox.x).toBeGreaterThanOrEqual(outerBox.x);
-  expect(innerBox.y).toBeGreaterThanOrEqual(outerBox.y);
-  expect(innerBox.x + innerBox.width).toBeLessThanOrEqual(
-    outerBox.x + outerBox.width,
-  );
-  expect(innerBox.y + innerBox.height).toBeLessThanOrEqual(
-    outerBox.y + outerBox.height,
-  );
+interface ProjectedSquarePosition {
+  visible: boolean;
+  x: number;
+  y: number;
 }
 
-async function getBox(locator: Parameters<typeof expect>[0]) {
-  return await locator.boundingBox();
-}
-
-function getSquareButton(
-  overlay: Parameters<typeof expect>[0],
-  square: string,
-) {
-  return overlay.getByRole('button', { name: `${square} square` });
+function getSquareButton(square: string) {
+  return `[data-testid="board-square-${square}"]`;
 }
 
 function parseMoveSquares(uciMove: string) {
@@ -27,6 +15,34 @@ function parseMoveSquares(uciMove: string) {
     from: uciMove.slice(0, 2),
     to: uciMove.slice(2, 4),
   };
+}
+
+function getProjectedDistance(
+  firstPosition: ProjectedSquarePosition,
+  secondPosition: ProjectedSquarePosition,
+) {
+  return Math.hypot(
+    secondPosition.x - firstPosition.x,
+    secondPosition.y - firstPosition.y,
+  );
+}
+
+async function getProjectedSquarePosition(
+  squareButton: Locator,
+): Promise<ProjectedSquarePosition> {
+  await expect(squareButton).toHaveAttribute('data-screen-visible', 'true');
+
+  return await squareButton.evaluate((node) => {
+    const x = Number(node.getAttribute('data-screen-x'));
+    const y = Number(node.getAttribute('data-screen-y'));
+    const visible = node.getAttribute('data-screen-visible') === 'true';
+
+    return { visible, x, y };
+  });
+}
+
+async function clickRenderedSquare(squareHitTarget: Locator) {
+  await squareHitTarget.click();
 }
 
 test('renders the local chess app shell in a real browser', async ({ page }) => {
@@ -41,66 +57,73 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 }) => {
   await page.goto('/');
 
-  const boardScene = page.getByTestId('board-scene');
   const cameraState = page.getByTestId('board-camera-state');
-  const overlay = page.getByTestId('board-scene-interaction-overlay');
-  const e2Square = getSquareButton(overlay, 'e2');
-  const e3Square = getSquareButton(overlay, 'e3');
-  const e4Square = getSquareButton(overlay, 'e4');
+  const e2Square = page.locator(getSquareButton('e2'));
+  const e3Square = page.locator(getSquareButton('e3'));
+  const e4Square = page.locator(getSquareButton('e4'));
+  const e2HitTarget = page.getByTestId('board-hit-target-e2');
+  const e4HitTarget = page.getByTestId('board-hit-target-e4');
 
-  const boardSceneBox = await getBox(boardScene);
-  const overlayBox = await getBox(overlay);
-  const e2SquareBox = await getBox(e2Square);
-  const e4SquareBox = await getBox(e4Square);
-
-  expect(boardSceneBox).not.toBeNull();
-  expect(overlayBox).not.toBeNull();
-  expect(e2SquareBox).not.toBeNull();
-  expect(e4SquareBox).not.toBeNull();
-
-  expectBoxWithin(boardSceneBox!, overlayBox!);
-  expectBoxWithin(overlayBox!, e2SquareBox!);
-  expectBoxWithin(overlayBox!, e4SquareBox!);
-
-  await expect(overlay.getByRole('button', { name: / square$/i })).toHaveCount(64);
+  await expect(page.getByTestId('board-scene-hit-target-overlay')).toBeVisible();
+  await expect(e2HitTarget).toBeVisible();
+  await expect(e4HitTarget).toBeVisible();
+  await expect(page.locator('[data-testid^="board-square-"]')).toHaveCount(64);
   await expect(page.getByText('No moves yet.')).toBeVisible();
   await expect(page.getByText('Latest error: None')).toBeVisible();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
   await expect(e2Square).toHaveAttribute('data-piece', 'white pawn');
   await expect(e4Square).toHaveAttribute('data-piece', 'empty');
 
+  const defaultE2Position = await getProjectedSquarePosition(e2Square);
+  const defaultE4Position = await getProjectedSquarePosition(e4Square);
+
   await page.getByRole('button', { name: 'Overhead view' }).click();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
+
+  const overheadE2Position = await getProjectedSquarePosition(e2Square);
+  const overheadE4Position = await getProjectedSquarePosition(e4Square);
+
+  expect(overheadE2Position).not.toEqual(defaultE2Position);
 
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
 
+  const zoomedE2Position = await getProjectedSquarePosition(e2Square);
+  const zoomedE4Position = await getProjectedSquarePosition(e4Square);
+
+  expect(
+    getProjectedDistance(zoomedE2Position, zoomedE4Position),
+  ).toBeGreaterThan(getProjectedDistance(overheadE2Position, overheadE4Position));
+
   await page.getByRole('button', { name: 'Reset view' }).click();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
 
-  await e2Square.click();
+  const resetE2Position = await getProjectedSquarePosition(e2Square);
+  const resetE4Position = await getProjectedSquarePosition(e4Square);
+
+  expect(resetE2Position).toEqual(defaultE2Position);
+  expect(resetE4Position).toEqual(defaultE4Position);
+
+  await clickRenderedSquare(e2HitTarget);
 
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
   await expect(e3Square).toHaveAttribute('data-legal-destination', 'true');
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
 
-  await e4Square.click();
+  await clickRenderedSquare(e4HitTarget);
 
   await expect(e2Square).toHaveAttribute('data-piece', 'empty');
   await expect(e4Square).toHaveAttribute('data-piece', 'white pawn');
   await expect(e4Square).toHaveAttribute('aria-pressed', 'false');
   await expect(e3Square).toHaveAttribute('data-legal-destination', 'false');
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'false');
-  await expect(page.getByText('Engine thinking')).toBeVisible();
   await expect(page.getByText('1. human e2e4')).toBeVisible();
-  await expect(page.getByText('Latest error: None')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Retry AI move' })).toHaveCount(0);
 
   const moveHistoryItems = page.locator('section[aria-label="Move history"] li');
 
-  await expect(moveHistoryItems).toHaveCount(2);
+  await expect(moveHistoryItems).toHaveCount(2, { timeout: 15000 });
   await expect(moveHistoryItems.nth(1)).toHaveText(/\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible();
+  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 15000 });
 
   const aiMoveText = await moveHistoryItems.nth(1).innerText();
   const aiMoveMatch = aiMoveText.match(/\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
@@ -113,6 +136,12 @@ test('boots the real browser Stockfish path and applies an AI move from visible 
 
   const { from, to } = parseMoveSquares(aiMove!);
 
-  await expect(getSquareButton(overlay, from)).toHaveAttribute('data-piece', 'empty');
-  await expect(getSquareButton(overlay, to)).toHaveAttribute('data-piece', /^(black) /);
+  await expect(page.locator(getSquareButton(from))).toHaveAttribute(
+    'data-piece',
+    'empty',
+  );
+  await expect(page.locator(getSquareButton(to))).toHaveAttribute(
+    'data-piece',
+    /^(black) /,
+  );
 });

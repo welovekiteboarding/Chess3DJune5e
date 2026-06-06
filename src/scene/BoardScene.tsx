@@ -1,8 +1,15 @@
 import { OrbitControls } from '@react-three/drei';
-import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber';
-import type { Camera } from 'three';
+import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
+import { type Camera, Matrix4, MOUSE, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { useEffect, useRef, useState, type ComponentType, type PropsWithChildren } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+  type PropsWithChildren,
+} from 'react';
 
 import type { ChessPiecePlacement, ChessSquare } from '../chess/chessTypes';
 
@@ -18,6 +25,9 @@ interface BoardCameraView {
 export interface BoardSceneCanvasProps extends PropsWithChildren {
   cameraView?: BoardCameraView;
   className?: string;
+  onSquareScreenPositionsChange?: (
+    squareScreenPositions: BoardSquareScreenPositions,
+  ) => void;
 }
 
 export interface BoardSceneProps {
@@ -36,9 +46,21 @@ interface BoardSquareDefinition {
   isDark: boolean;
 }
 
+interface BoardSquareScreenPosition {
+  visible: boolean;
+  x: number;
+  y: number;
+}
+
+type BoardSquareScreenPositions = Partial<
+  Record<ChessSquare, BoardSquareScreenPosition>
+>;
+
 const boardSquares = createBoardSquares();
 const squareSize = 1;
 const boardHalfSpan = 3.5;
+const boardRotationRadians = -0.72;
+const boardSquareSurfaceY = 0.11;
 const minCameraDistance = 6.6;
 const maxCameraDistance = 12.5;
 const minCameraPolar = 0.18;
@@ -69,30 +91,30 @@ const fallbackOnlyStyle = {
   whiteSpace: 'nowrap',
   border: 0,
 } as const;
-const interactionOverlayStyle = {
+const interactionHitTargetOverlayStyle = {
   position: 'absolute',
-  inset: '38% 0 34% 0',
-  display: 'grid',
-  gridTemplateColumns: 'repeat(8, 1fr)',
-  gridTemplateRows: 'repeat(8, 1fr)',
+  inset: 0,
   zIndex: 2,
+  pointerEvents: 'none',
 } as const;
-const interactionSquareStyle = {
-  appearance: 'none',
-  background: 'transparent',
+const interactionHitTargetStyle = {
+  position: 'absolute',
+  transform: 'translate(-50%, -50%)',
+  pointerEvents: 'auto',
+  background: 'rgba(255, 255, 255, 0.001)',
   border: 0,
+  borderRadius: '999px',
   cursor: 'pointer',
-  display: 'block',
-  height: '100%',
-  margin: 0,
   padding: 0,
-  width: '100%',
+  margin: 0,
 } as const;
+const boardRotationMatrix = new Matrix4().makeRotationX(boardRotationRadians);
 
 function DefaultBoardSceneCanvas({
   cameraView = defaultCameraView,
   children,
   className,
+  onSquareScreenPositionsChange,
 }: BoardSceneCanvasProps) {
   const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
 
@@ -102,7 +124,10 @@ function DefaultBoardSceneCanvas({
       className={className}
       shadows
     >
-      <BoardSceneCameraRig cameraView={cameraView} />
+      <BoardSceneCameraRig
+        cameraView={cameraView}
+        onSquareScreenPositionsChange={onSquareScreenPositionsChange}
+      />
       {children}
     </Canvas>
   );
@@ -119,6 +144,8 @@ export function BoardScene({
   const legalDestinationSet = new Set(legalDestinationSquares);
   const legalDestinationMarkers = Array.from(legalDestinationSet);
   const [cameraView, setCameraView] = useState(defaultCameraView);
+  const [squareScreenPositions, setSquareScreenPositions] =
+    useState<BoardSquareScreenPositions>({});
 
   function handleCameraAction(action: BoardCameraAction) {
     setCameraView((currentCameraView) =>
@@ -139,6 +166,7 @@ export function BoardScene({
         <CanvasBoundary
           cameraView={cameraView}
           className="board-scene-canvas"
+          onSquareScreenPositionsChange={setSquareScreenPositions}
         >
           <color args={['#e8ecf4']} attach="background" />
           <ambientLight intensity={0.8} />
@@ -224,6 +252,35 @@ export function BoardScene({
           </group>
         </CanvasBoundary>
 
+        <div
+          className="board-scene-hit-target-overlay"
+          data-testid="board-scene-hit-target-overlay"
+          style={interactionHitTargetOverlayStyle}
+        >
+          {boardSquares.map((boardSquare) => {
+            const hitTargetStyle = getInteractionHitTargetStyle(
+              boardSquare,
+              squareScreenPositions,
+            );
+
+            if (!hitTargetStyle) {
+              return null;
+            }
+
+            return (
+              <div
+                data-screen-x={squareScreenPositions[boardSquare.square]?.x}
+                data-screen-y={squareScreenPositions[boardSquare.square]?.y}
+                data-square={boardSquare.square}
+                data-testid={`board-hit-target-${boardSquare.square}`}
+                key={boardSquare.square}
+                onClick={() => onSquareSelect?.(boardSquare.square)}
+                style={hitTargetStyle}
+              />
+            );
+          })}
+        </div>
+
         <div className="board-scene-camera-ui">
           <div
             aria-label="Board camera controls"
@@ -301,45 +358,47 @@ export function BoardScene({
       </div>
 
       <div
-        aria-label="Chess board squares"
-        className="board-scene-interaction-overlay"
-        data-testid="board-scene-interaction-overlay"
-        role="grid"
-        style={interactionOverlayStyle}
-      >
-        {boardSquares.map((boardSquare) => {
-          const piecePlacement = piecePlacements.find(
-            (entry) => entry.square === boardSquare.square,
-          );
-          const isSelected = boardSquare.square === selectedSquare;
-          const isLegalDestination = legalDestinationSet.has(boardSquare.square);
-          const pieceDescription = piecePlacement
-            ? `${piecePlacement.color} ${piecePlacement.piece}`
-            : 'empty';
-
-          return (
-            <button
-              aria-label={`${boardSquare.square} square`}
-              aria-pressed={isSelected}
-              data-legal-destination={String(isLegalDestination)}
-              data-piece={pieceDescription}
-              data-selected={String(isSelected)}
-              data-square={boardSquare.square}
-              data-testid={`board-square-${boardSquare.square}`}
-              key={boardSquare.square}
-              onClick={() => onSquareSelect?.(boardSquare.square)}
-              style={interactionSquareStyle}
-              type="button"
-            />
-          );
-        })}
-      </div>
-
-      <div
         className="board-scene-fallback"
         data-testid="board-scene-fallback"
         style={fallbackOnlyStyle}
       >
+        <div
+          aria-label="Chess board squares"
+          data-testid="board-scene-square-controls"
+          role="grid"
+          style={fallbackOnlyStyle}
+        >
+          {boardSquares.map((boardSquare) => {
+            const piecePlacement = piecePlacements.find(
+              (entry) => entry.square === boardSquare.square,
+            );
+            const isSelected = boardSquare.square === selectedSquare;
+            const isLegalDestination = legalDestinationSet.has(boardSquare.square);
+            const pieceDescription = piecePlacement
+              ? `${piecePlacement.color} ${piecePlacement.piece}`
+              : 'empty';
+            const squareScreenPosition =
+              squareScreenPositions[boardSquare.square];
+
+            return (
+              <button
+                aria-label={`${boardSquare.square} square`}
+                aria-pressed={isSelected}
+                data-legal-destination={String(isLegalDestination)}
+                data-piece={pieceDescription}
+                data-screen-visible={String(squareScreenPosition?.visible ?? false)}
+                data-screen-x={squareScreenPosition?.x}
+                data-screen-y={squareScreenPosition?.y}
+                data-selected={String(isSelected)}
+                data-square={boardSquare.square}
+                data-testid={`board-square-${boardSquare.square}`}
+                key={boardSquare.square}
+                onClick={() => onSquareSelect?.(boardSquare.square)}
+                type="button"
+              />
+            );
+          })}
+        </div>
         <ul aria-label="Legal destination squares">
           {legalDestinationMarkers.map((square) => (
             <li
@@ -387,11 +446,17 @@ type BoardCameraAction =
 
 function BoardSceneCameraRig({
   cameraView,
+  onSquareScreenPositionsChange,
 }: {
   cameraView: BoardCameraView;
+  onSquareScreenPositionsChange?: (
+    squareScreenPositions: BoardSquareScreenPositions,
+  ) => void;
 }) {
   const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  const lastSquareScreenPositionsRef = useRef('');
 
   useEffect(() => {
     const [cameraX, cameraY, cameraZ] = getCameraPosition(cameraView);
@@ -401,6 +466,37 @@ function BoardSceneCameraRig({
     controlsRef.current?.target.set(0, 0, 0);
     controlsRef.current?.update();
   }, [camera, cameraView]);
+
+  useFrame(() => {
+    if (!onSquareScreenPositionsChange) {
+      return;
+    }
+
+    const projectedSquarePositions: BoardSquareScreenPositions = {};
+    const projectedSquarePositionsSnapshot = boardSquares
+      .map((boardSquare) => {
+        const [x, z] = getSquarePosition(boardSquare);
+        const projectedSquarePosition = projectBoardPositionToScreen({
+          camera,
+          size,
+          x,
+          y: boardSquareSurfaceY,
+          z,
+        });
+
+        projectedSquarePositions[boardSquare.square] = projectedSquarePosition;
+
+        return `${boardSquare.square}:${projectedSquarePosition.x},${projectedSquarePosition.y},${Number(projectedSquarePosition.visible)}`;
+      })
+      .join('|');
+
+    if (projectedSquarePositionsSnapshot === lastSquareScreenPositionsRef.current) {
+      return;
+    }
+
+    lastSquareScreenPositionsRef.current = projectedSquarePositionsSnapshot;
+    onSquareScreenPositionsChange(projectedSquarePositions);
+  });
 
   return (
     <OrbitControls
@@ -413,6 +509,11 @@ function BoardSceneCameraRig({
       maxPolarAngle={maxCameraPolar}
       minDistance={minCameraDistance}
       minPolarAngle={minCameraPolar}
+      mouseButtons={{
+        LEFT: MOUSE.PAN,
+        MIDDLE: MOUSE.DOLLY,
+        RIGHT: MOUSE.ROTATE,
+      }}
       rotateSpeed={0.85}
       target={[0, 0, 0]}
       zoomSpeed={0.9}
@@ -576,4 +677,98 @@ function setCameraPosition(
   cameraZ: number,
 ) {
   camera.position.set(cameraX, cameraY, cameraZ);
+}
+
+function getInteractionHitTargetStyle(
+  boardSquare: BoardSquareDefinition,
+  squareScreenPositions: BoardSquareScreenPositions,
+): CSSProperties | null {
+  const squareScreenPosition = squareScreenPositions[boardSquare.square];
+
+  if (!squareScreenPosition?.visible) {
+    return null;
+  }
+
+  const closestNeighborDistance = boardSquares
+    .filter(
+      (candidateSquare) =>
+        candidateSquare.square !== boardSquare.square &&
+        Math.max(
+          Math.abs(candidateSquare.fileIndex - boardSquare.fileIndex),
+          Math.abs(candidateSquare.rankIndex - boardSquare.rankIndex),
+        ) === 1,
+    )
+    .flatMap((candidateSquare) => {
+      const candidateScreenPosition =
+        squareScreenPositions[candidateSquare.square];
+
+      if (!candidateScreenPosition?.visible) {
+        return [];
+      }
+
+      return [
+        Math.hypot(
+          candidateScreenPosition.x - squareScreenPosition.x,
+          candidateScreenPosition.y - squareScreenPosition.y,
+        ),
+      ];
+    })
+    .reduce<number | null>(
+      (currentClosestDistance, candidateDistance) =>
+        currentClosestDistance === null
+          ? candidateDistance
+          : Math.min(currentClosestDistance, candidateDistance),
+      null,
+    );
+  const targetSize = roundToTwoDecimals(
+    clamp((closestNeighborDistance ?? 42) * 0.72, 18, 72),
+  );
+
+  return {
+    ...interactionHitTargetStyle,
+    height: `${targetSize}px`,
+    left: `${squareScreenPosition.x}px`,
+    top: `${squareScreenPosition.y}px`,
+    width: `${targetSize}px`,
+  };
+}
+
+function projectBoardPositionToScreen({
+  camera,
+  size,
+  x,
+  y,
+  z,
+}: {
+  camera: Camera;
+  size: { height: number; width: number };
+  x: number;
+  y: number;
+  z: number;
+}): BoardSquareScreenPosition {
+  const projectedVector = new Vector3(x, y, z)
+    .applyMatrix4(boardRotationMatrix)
+    .project(camera);
+  const screenX = roundToTwoDecimals(
+    (projectedVector.x * 0.5 + 0.5) * size.width,
+  );
+  const screenY = roundToTwoDecimals(
+    (-projectedVector.y * 0.5 + 0.5) * size.height,
+  );
+
+  return {
+    visible:
+      projectedVector.z >= -1 &&
+      projectedVector.z <= 1 &&
+      screenX >= 0 &&
+      screenX <= size.width &&
+      screenY >= 0 &&
+      screenY <= size.height,
+    x: screenX,
+    y: screenY,
+  };
+}
+
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
 }

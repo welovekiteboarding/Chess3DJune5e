@@ -49,15 +49,12 @@ describe('BoardScene', () => {
     expect(
       screen.getByRole('grid', { name: 'Chess board squares' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId('board-scene-interaction-overlay'),
-    ).toBeInTheDocument();
     expect(screen.getByTestId('board-scene-fallback')).toBeInTheDocument();
 
     const squareButtons = screen.getAllByRole('button', { name: /square$/i });
     expect(squareButtons).toHaveLength(64);
     expect(
-      within(screen.getByTestId('board-scene-interaction-overlay')).getByRole(
+      within(screen.getByTestId('board-scene-square-controls')).getByRole(
         'button',
         { name: 'e2 square' },
       ),
@@ -83,6 +80,30 @@ describe('BoardScene', () => {
 
     expect(handleSquareSelect).toHaveBeenCalledWith('f4');
     expect(handleSquareSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps square controls in the fallback region instead of a visible overlay', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    const fallback = screen.getByTestId('board-scene-fallback');
+    const squareGrid = within(fallback).getByRole('grid', {
+      name: 'Chess board squares',
+    });
+
+    expect(squareGrid).toHaveStyle({
+      position: 'absolute',
+      width: '1px',
+      height: '1px',
+    });
+    expect(
+      screen.queryByTestId('board-scene-interaction-overlay'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders camera controls with overhead and reset actions', () => {
