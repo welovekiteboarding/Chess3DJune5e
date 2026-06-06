@@ -9,6 +9,14 @@ The goal of this docs-only task is to describe the intended board geometry and
 camera behavior clearly enough that future UI work preserves the current
 playable chess surface.
 
+## Scope Of This Issue
+
+This Linear issue is documentation-only.
+
+It records the intended camera and geometry behavior for future implementation
+and review work, but it does not broaden this issue into application code,
+test, asset, backend, or product-scope changes.
+
 ## MVP Boundary
 
 This remains a local browser MVP. The camera and geometry fixes do not add:
