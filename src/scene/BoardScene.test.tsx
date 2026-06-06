@@ -16,6 +16,56 @@ import {
 } from '../chess/chessRules';
 import { BoardScene, type BoardSceneCanvasProps } from './BoardScene';
 
+const expectedSceneTestWarnings = [
+  'THREE.WARNING: Multiple instances of Three.js being imported.',
+  'The tag <',
+  'is unrecognized in this browser.',
+  'is using incorrect casing.',
+  'non-boolean attribute `transparent`',
+  'React does not recognize the `',
+] as const;
+
+function isExpectedSceneTestWarning(message: string) {
+  return expectedSceneTestWarnings.some((warningFragment) =>
+    message.includes(warningFragment),
+  );
+}
+
+function formatConsoleMessage(messageParts: unknown[]) {
+  return messageParts
+    .map((messagePart) =>
+      typeof messagePart === 'string'
+        ? messagePart
+        : messagePart instanceof Error
+          ? messagePart.message
+          : String(messagePart),
+    )
+    .join(' ');
+}
+
+function suppressExpectedSceneWarnings(
+  consoleMethod: 'error' | 'warn',
+) {
+  const originalConsoleMethod = console[consoleMethod];
+
+  return vi
+    .spyOn(console, consoleMethod)
+    .mockImplementation((...messageParts: Parameters<typeof originalConsoleMethod>) => {
+      const message = formatConsoleMessage(messageParts);
+
+      if (isExpectedSceneTestWarning(message)) {
+        return;
+      }
+
+      originalConsoleMethod(...messageParts);
+    });
+}
+
+beforeEach(() => {
+  suppressExpectedSceneWarnings('error');
+  suppressExpectedSceneWarnings('warn');
+});
+
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
@@ -23,17 +73,14 @@ afterEach(() => {
   cleanup();
 });
 
-function TestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
+function TestCanvasBoundary({ className }: BoardSceneCanvasProps) {
   return (
-    <div className={className} data-testid="board-scene-canvas">
-      {children}
-    </div>
+    <div className={className} data-testid="board-scene-canvas" />
   );
 }
 
 function InteractiveTestCanvasBoundary({
   cameraView,
-  children,
   className,
   onCameraViewChange,
 }: BoardSceneCanvasProps) {
@@ -59,6 +106,13 @@ function InteractiveTestCanvasBoundary({
       >
         Simulate orbit update
       </button>
+    </div>
+  );
+}
+
+function SceneTestCanvasBoundary({ children, className }: BoardSceneCanvasProps) {
+  return (
+    <div className={className} data-testid="board-scene-canvas">
       {children}
     </div>
   );
@@ -315,7 +369,7 @@ describe('BoardScene', () => {
   it('does not tilt the board group to fake the camera angle', () => {
     const { container } = render(
       <BoardScene
-        CanvasBoundary={TestCanvasBoundary}
+        CanvasBoundary={SceneTestCanvasBoundary}
         legalDestinationSquares={[]}
         selectedSquare={null}
       />,
