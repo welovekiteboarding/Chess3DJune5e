@@ -26,6 +26,7 @@ import {
   boardFramePalette,
   boardGeometry,
   boardVisualContract,
+  type BoardSquareFinish,
   getBoardFrameSegmentFinish,
   getBoardSquareFinish,
 } from './materials';
@@ -461,99 +462,7 @@ export function BoardScene({
                   }
                   position={[x, 0, z]}
                 >
-                  <mesh castShadow receiveShadow>
-                    <boxGeometry args={[squareSize, boardSquareHeight, squareSize]} />
-                    <meshStandardMaterial
-                      color={squareFinish.edgeColor}
-                      metalness={0.08}
-                      roughness={0.72}
-                    />
-                  </mesh>
-                  <mesh
-                    castShadow
-                    position={[
-                      0,
-                      boardSquareSurfaceY -
-                        boardGeometry.squareFieldHeight / 2,
-                      0,
-                    ]}
-                    receiveShadow
-                  >
-                    <boxGeometry
-                      args={[
-                        boardGeometry.squareFieldScale,
-                        boardGeometry.squareFieldHeight,
-                        boardGeometry.squareFieldScale,
-                      ]}
-                    />
-                    <meshStandardMaterial
-                      color={squareFinish.baseColor}
-                      metalness={0.1}
-                      roughness={0.6}
-                    />
-                  </mesh>
-                  <mesh
-                    castShadow
-                    position={[
-                      0,
-                      boardSquareSurfaceY - boardGeometry.squareInsetHeight / 2,
-                      0,
-                    ]}
-                    receiveShadow
-                  >
-                    <boxGeometry
-                      args={[
-                        boardGeometry.squareInsetScale,
-                        boardGeometry.squareInsetHeight,
-                        boardGeometry.squareInsetScale,
-                      ]}
-                    />
-                    <meshStandardMaterial
-                      color={squareFinish.insetColor}
-                      metalness={squareFinish.metalness}
-                      roughness={squareFinish.roughness}
-                    />
-                  </mesh>
-                  <mesh
-                    castShadow
-                    position={
-                      squareFinish.accentAxis === 'file'
-                        ? [
-                            0,
-                            boardSquareSurfaceY -
-                              boardGeometry.squareAccentHeight / 2,
-                            squareFinish.accentOffset,
-                          ]
-                        : [
-                            squareFinish.accentOffset,
-                            boardSquareSurfaceY -
-                              boardGeometry.squareAccentHeight / 2,
-                            0,
-                          ]
-                    }
-                    receiveShadow
-                  >
-                    <boxGeometry
-                      args={
-                        squareFinish.accentAxis === 'file'
-                          ? [
-                              boardGeometry.squareAccentLength,
-                              boardGeometry.squareAccentHeight,
-                              boardGeometry.squareAccentWidth,
-                            ]
-                          : [
-                              boardGeometry.squareAccentWidth,
-                              boardGeometry.squareAccentHeight,
-                              boardGeometry.squareAccentLength,
-                            ]
-                      }
-                    />
-                    <meshStandardMaterial
-                      color={squareFinish.accentColor}
-                      metalness={0.12}
-                      roughness={0.48}
-                    />
-                  </mesh>
+                  <BoardSquareTile finish={squareFinish} />
                   {isSelected ? <SelectedSquareHighlight /> : null}
                   {isLegalDestination ? (
                     <LegalDestinationMarker occupied={isOccupied} />
@@ -844,6 +753,13 @@ export function BoardScene({
             moveHighlightVisualContract.legalMarkerTreatment
           }
           data-light-square-material={boardVisualContract.lightSquareMaterialId}
+          data-square-decoration-inset={boardGeometry.squareTopInset}
+          data-square-decoration-treatment={
+            boardVisualContract.squareDecorationTreatment
+          }
+          data-square-surface-treatment={
+            boardVisualContract.squareSurfaceTreatment
+          }
           data-selected-highlight-contrast={
             moveHighlightVisualContract.selectedHighlightContrast
           }
@@ -901,6 +817,63 @@ function SceneBackdrop() {
           emissiveIntensity={0.22}
           roughness={0.98}
           side={DoubleSide}
+        />
+      </mesh>
+    </>
+  );
+}
+
+function BoardSquareTile({ finish }: { finish: BoardSquareFinish }) {
+  const edgeThickness = (squareSize - boardGeometry.squareFieldScale) / 2;
+  const edgeOffset = squareSize / 2 - edgeThickness / 2;
+  const edgeY = (boardGeometry.squareBaseHeight - boardSquareHeight) / 2;
+  const edgeRuns = [
+    {
+      args: [squareSize, boardGeometry.squareBaseHeight, edgeThickness],
+      position: [0, edgeY, edgeOffset],
+    },
+    {
+      args: [squareSize, boardGeometry.squareBaseHeight, edgeThickness],
+      position: [0, edgeY, -edgeOffset],
+    },
+    {
+      args: [edgeThickness, boardGeometry.squareBaseHeight, boardGeometry.squareFieldScale],
+      position: [edgeOffset, edgeY, 0],
+    },
+    {
+      args: [edgeThickness, boardGeometry.squareBaseHeight, boardGeometry.squareFieldScale],
+      position: [-edgeOffset, edgeY, 0],
+    },
+  ] as const;
+
+  return (
+    <>
+      {edgeRuns.map(({ args, position }, edgeIndex) => (
+        <mesh castShadow key={edgeIndex} position={position} receiveShadow>
+          <boxGeometry args={args} />
+          <meshStandardMaterial
+            color={finish.edgeColor}
+            metalness={0.02}
+            roughness={finish.edgeRoughness}
+          />
+        </mesh>
+      ))}
+      <mesh
+        castShadow
+        position={[0, boardSquareSurfaceY - boardGeometry.squareTopHeight / 2, 0]}
+        receiveShadow
+      >
+        <boxGeometry
+          args={[
+            boardGeometry.squareFieldScale,
+            boardGeometry.squareTopHeight,
+            boardGeometry.squareFieldScale,
+          ]}
+        />
+        <meshStandardMaterial
+          color={finish.surfaceColor}
+          metalness={finish.surfaceMetalness}
+          roughness={finish.surfaceRoughness}
         />
       </mesh>
     </>

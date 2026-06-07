@@ -35,16 +35,22 @@ function getContrastRatio(firstColor: string, secondColor: string) {
 describe('boardTheme', () => {
   it('defines a framed board contract with readable square contrast', () => {
     expect(boardVisualContract.frameStyleId).toBe('walnut-bevel-frame');
-    expect(boardVisualContract.lightSquareMaterialId).toBe('maple-stone-inlay');
-    expect(boardVisualContract.darkSquareMaterialId).toBe('walnut-slate-inlay');
+    expect(boardVisualContract.lightSquareMaterialId).toBe('maple-stable-matte-cap');
+    expect(boardVisualContract.darkSquareMaterialId).toBe('walnut-stable-matte-cap');
     expect(boardVisualContract.legalMarkerStyleId).toBe('glass-dot-marker');
     expect(boardVisualContract.selectedMarkerStyleId).toBe(
       'brass-perimeter-highlight',
     );
+    expect(boardVisualContract.squareSurfaceTreatment).toBe('single-cap-plane');
+    expect(boardVisualContract.squareDecorationTreatment).toBe('none');
 
     expect(boardGeometry.frameOverhang).toBeGreaterThan(0.45);
     expect(boardGeometry.frameRailHeight).toBeGreaterThan(0.08);
     expect(boardGeometry.frameRailHeight).toBeLessThan(boardGeometry.squareHeight);
+    expect(boardGeometry.squareBaseHeight + boardGeometry.squareTopHeight).toBeCloseTo(
+      boardGeometry.squareHeight,
+      5,
+    );
     expect(boardGeometry.squareSurfaceY).toBeCloseTo(
       boardGeometry.squareHeight / 2,
       5,
@@ -61,18 +67,18 @@ describe('boardTheme', () => {
       rankIndex: 0,
     });
 
-    expect(getContrastRatio(lightSquare.insetColor, darkSquare.insetColor)).toBeGreaterThan(
+    expect(getContrastRatio(lightSquare.surfaceColor, darkSquare.surfaceColor)).toBeGreaterThan(
       2.8,
     );
-    expect(getContrastRatio(lightSquare.accentColor, darkSquare.insetColor)).toBeGreaterThan(
-      2,
-    );
-    expect(getContrastRatio(darkSquare.accentColor, lightSquare.insetColor)).toBeGreaterThan(
+    expect(getContrastRatio(lightSquare.edgeColor, darkSquare.surfaceColor)).toBeGreaterThan(
       1.8,
+    );
+    expect(getContrastRatio(darkSquare.edgeColor, lightSquare.surfaceColor)).toBeGreaterThan(
+      1.6,
     );
   });
 
-  it('adds deterministic procedural variation inside each square family', () => {
+  it('keeps square colors consistent inside each square family for stable play readability', () => {
     const nearLightSquare = getBoardSquareFinish({
       fileIndex: 0,
       isDark: false,
@@ -94,10 +100,10 @@ describe('boardTheme', () => {
       rankIndex: 6,
     });
 
-    expect(nearLightSquare.insetColor).not.toBe(farLightSquare.insetColor);
-    expect(nearLightSquare.accentColor).not.toBe(farLightSquare.accentColor);
-    expect(nearDarkSquare.insetColor).not.toBe(farDarkSquare.insetColor);
-    expect(nearDarkSquare.accentColor).not.toBe(farDarkSquare.accentColor);
+    expect(nearLightSquare.surfaceColor).toBe(farLightSquare.surfaceColor);
+    expect(nearLightSquare.edgeColor).toBe(farLightSquare.edgeColor);
+    expect(nearDarkSquare.surfaceColor).toBe(farDarkSquare.surfaceColor);
+    expect(nearDarkSquare.edgeColor).toBe(farDarkSquare.edgeColor);
   });
 
   it('keeps interaction markers visible against both square palettes', () => {
@@ -115,25 +121,25 @@ describe('boardTheme', () => {
     expect(
       getContrastRatio(
         boardInteractionPalette.selectedBorderColor,
-        lightSquare.insetColor,
+        lightSquare.surfaceColor,
       ),
     ).toBeGreaterThan(1.5);
     expect(
       getContrastRatio(
         boardInteractionPalette.selectedBorderColor,
-        darkSquare.insetColor,
+        darkSquare.surfaceColor,
       ),
     ).toBeGreaterThan(2.2);
     expect(
       getContrastRatio(
         boardInteractionPalette.legalMarkerColor,
-        lightSquare.insetColor,
+        lightSquare.surfaceColor,
       ),
     ).toBeGreaterThan(1.4);
     expect(
       getContrastRatio(
         boardInteractionPalette.legalMarkerColor,
-        darkSquare.insetColor,
+        darkSquare.surfaceColor,
       ),
     ).toBeGreaterThan(1.4);
   });
@@ -146,5 +152,28 @@ describe('boardTheme', () => {
     expect(boardGeometry.legalMarkerRingRadius).toBeGreaterThan(
       boardGeometry.legalMarkerRadius,
     );
+  });
+
+  it('uses a single readable top plane with no decorative square accent geometry', () => {
+    const geometry = boardGeometry as unknown as Record<string, number>;
+
+    expect(geometry.squareTopHeight).toBeGreaterThan(0);
+    expect(geometry.squareBaseHeight).toBeGreaterThan(0);
+    expect(geometry.squareTopInset).toBe(0);
+    expect(geometry.squareAccentHeight).toBe(0);
+    expect(geometry.squareAccentInset).toBe(0);
+    expect(geometry.squareAccentLength).toBe(0);
+    expect(geometry.squareAccentWidth).toBe(0);
+
+    expect(geometry.squareBaseHeight + geometry.squareTopHeight).toBeCloseTo(
+      boardGeometry.squareHeight,
+      5,
+    );
+
+    const squareBaseTopY =
+      -boardGeometry.squareHeight / 2 + geometry.squareBaseHeight;
+    const squareTopY = boardGeometry.squareSurfaceY;
+
+    expect(squareBaseTopY).toBeLessThan(squareTopY);
   });
 });

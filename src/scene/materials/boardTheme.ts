@@ -7,14 +7,11 @@ export interface ProceduralBoardSquare {
 }
 
 export interface BoardSquareFinish {
-  accentAxis: 'file' | 'rank';
-  accentColor: string;
-  accentOffset: number;
-  baseColor: string;
   edgeColor: string;
-  insetColor: string;
-  metalness: number;
-  roughness: number;
+  edgeRoughness: number;
+  surfaceColor: string;
+  surfaceMetalness: number;
+  surfaceRoughness: number;
 }
 
 export const boardGeometry = {
@@ -34,10 +31,11 @@ export const boardGeometry = {
   plinthHeight: 0.24,
   selectedFrameDepth: 0.038,
   selectedFrameThickness: 0.12,
-  squareAccentHeight: 0.014,
-  squareAccentInset: 0.22,
-  squareAccentLength: 0.52,
-  squareAccentWidth: 0.1,
+  squareAccentHeight: 0,
+  squareAccentInset: 0,
+  squareAccentLength: 0,
+  squareAccentWidth: 0,
+  squareBaseHeight: 0.124,
   squareFieldHeight: 0.056,
   squareFieldScale: 0.94,
   squareHeight: 0.18,
@@ -45,14 +43,18 @@ export const boardGeometry = {
   squareInsetScale: 0.8,
   squareSize: 1,
   squareSurfaceY: 0.09,
+  squareTopHeight: 0.056,
+  squareTopInset: 0,
 } as const;
 
 export const boardVisualContract = {
-  darkSquareMaterialId: 'walnut-slate-inlay',
+  darkSquareMaterialId: 'walnut-stable-matte-cap',
   frameStyleId: 'walnut-bevel-frame',
   legalMarkerStyleId: 'glass-dot-marker',
-  lightSquareMaterialId: 'maple-stone-inlay',
+  lightSquareMaterialId: 'maple-stable-matte-cap',
   selectedMarkerStyleId: 'brass-perimeter-highlight',
+  squareDecorationTreatment: 'none',
+  squareSurfaceTreatment: 'single-cap-plane',
 } as const;
 
 export const boardInteractionPalette = {
@@ -72,68 +74,26 @@ export const boardFramePalette = {
 } as const;
 
 const lightSquarePalette = {
-  accentColor: '#f7ead1',
-  baseColor: '#b99773',
-  edgeColor: '#8f7257',
-  insetColor: '#ddc7a5',
+  edgeColor: '#a48464',
+  surfaceColor: '#ddc7a5',
 } as const;
 
 const darkSquarePalette = {
-  accentColor: '#916b50',
-  baseColor: '#614231',
   edgeColor: '#493225',
-  insetColor: '#775944',
+  surfaceColor: '#775944',
 } as const;
 
 export function getBoardSquareFinish(
   boardSquare: ProceduralBoardSquare,
 ): BoardSquareFinish {
   const palette = boardSquare.isDark ? darkSquarePalette : lightSquarePalette;
-  const variantSeed = Math.sin(
-    boardSquare.fileIndex * 1.73 + boardSquare.rankIndex * 2.41,
-  );
-  const secondarySeed = Math.cos(
-    boardSquare.fileIndex * 1.19 - boardSquare.rankIndex * 1.57,
-  );
-  const tertiarySeed = Math.sin(
-    boardSquare.fileIndex * 2.87 - boardSquare.rankIndex * 0.83,
-  );
-  const lightnessShift = variantSeed * (boardSquare.isDark ? 0.05 : 0.06);
-  const saturationShift = secondarySeed * 0.045;
-  const hueShift = (variantSeed + secondarySeed) * 0.006;
-  const accentOffsetSign =
-    (boardSquare.fileIndex + boardSquare.rankIndex) % 2 === 0 ? 1 : -1;
 
   return {
-    accentAxis:
-      (boardSquare.fileIndex + boardSquare.rankIndex) % 2 === 0 ? 'file' : 'rank',
-    accentColor: shiftHexColor(
-      palette.accentColor,
-      hueShift + tertiarySeed * 0.015,
-      saturationShift * 0.85 + tertiarySeed * 0.02,
-      lightnessShift * 1.1 + tertiarySeed * 0.035,
-    ),
-    accentOffset: boardGeometry.squareAccentInset * accentOffsetSign,
-    baseColor: shiftHexColor(
-      palette.baseColor,
-      hueShift,
-      saturationShift * 0.85,
-      lightnessShift * 0.58,
-    ),
-    edgeColor: shiftHexColor(
-      palette.edgeColor,
-      hueShift * 0.6,
-      saturationShift * 0.45,
-      lightnessShift * 0.35,
-    ),
-    insetColor: shiftHexColor(
-      palette.insetColor,
-      hueShift * 0.7,
-      saturationShift * 0.65,
-      lightnessShift,
-    ),
-    metalness: boardSquare.isDark ? 0.18 : 0.1,
-    roughness: boardSquare.isDark ? 0.56 : 0.62,
+    edgeColor: palette.edgeColor,
+    edgeRoughness: boardSquare.isDark ? 0.82 : 0.86,
+    surfaceColor: palette.surfaceColor,
+    surfaceMetalness: 0.02,
+    surfaceRoughness: boardSquare.isDark ? 0.88 : 0.9,
   };
 }
 
