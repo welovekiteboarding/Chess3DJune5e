@@ -742,7 +742,12 @@ export function BoardScene({
           data-testid="board-piece-animation-state"
         />
         <div
+          data-corner-decoration-treatment={
+            boardVisualContract.cornerDecorationTreatment
+          }
+          data-corner-join-style={boardVisualContract.cornerJoinStyle}
           data-dark-square-material={boardVisualContract.darkSquareMaterialId}
+          data-frame-rail-span={formatGroundingValue(boardGeometry.frameRailSpan)}
           data-frame-style={boardVisualContract.frameStyleId}
           data-legal-marker-occupied-style={
             moveHighlightVisualContract.legalMarkerOccupiedStyle
@@ -883,34 +888,28 @@ function BoardSquareTile({ finish }: { finish: BoardSquareFinish }) {
 function BoardFrame() {
   const playableHalfExtent = boardHalfSpan + squareSize / 2;
   const frameOuterSpan = boardGeometry.boardSpan + boardGeometry.frameOverhang * 2;
-  const sideRailLength = boardGeometry.boardSpan;
+  const frameCornerOffset =
+    playableHalfExtent + boardGeometry.frameRailThickness / 2;
+  const sideRailLength = boardGeometry.frameRailSpan;
   const frameRailY = (boardGeometry.frameRailHeight - boardSquareHeight) / 2;
   const plinthY = -boardGeometry.plinthHeight / 2 - 0.08;
   const innerTrimY = boardSquareSurfaceY - boardGeometry.innerTrimHeight / 2;
   const frameSegments = [
     {
       args: [
-        frameOuterSpan,
+        boardGeometry.frameRailSpan,
         boardGeometry.frameRailHeight,
         boardGeometry.frameRailThickness,
       ] as [number, number, number],
-      position: [
-        0,
-        frameRailY,
-        playableHalfExtent + boardGeometry.frameRailThickness / 2,
-      ] as [number, number, number],
+      position: [0, frameRailY, frameCornerOffset] as [number, number, number],
     },
     {
       args: [
-        frameOuterSpan,
+        boardGeometry.frameRailSpan,
         boardGeometry.frameRailHeight,
         boardGeometry.frameRailThickness,
       ] as [number, number, number],
-      position: [
-        0,
-        frameRailY,
-        -(playableHalfExtent + boardGeometry.frameRailThickness / 2),
-      ] as [number, number, number],
+      position: [0, frameRailY, -frameCornerOffset] as [number, number, number],
     },
     {
       args: [
@@ -918,11 +917,7 @@ function BoardFrame() {
         boardGeometry.frameRailHeight,
         sideRailLength,
       ] as [number, number, number],
-      position: [
-        playableHalfExtent + boardGeometry.frameRailThickness / 2,
-        frameRailY,
-        0,
-      ] as [number, number, number],
+      position: [frameCornerOffset, frameRailY, 0] as [number, number, number],
     },
     {
       args: [
@@ -930,11 +925,7 @@ function BoardFrame() {
         boardGeometry.frameRailHeight,
         sideRailLength,
       ] as [number, number, number],
-      position: [
-        -(playableHalfExtent + boardGeometry.frameRailThickness / 2),
-        frameRailY,
-        0,
-      ] as [number, number, number],
+      position: [-frameCornerOffset, frameRailY, 0] as [number, number, number],
     },
   ];
   const frameCorners = [
@@ -1012,11 +1003,9 @@ function BoardFrame() {
           castShadow
           key={`frame-corner-${cornerIndex}`}
           position={[
-            xDirection *
-              (playableHalfExtent + boardGeometry.frameRailThickness / 2),
+            xDirection * frameCornerOffset,
             frameRailY,
-            zDirection *
-              (playableHalfExtent + boardGeometry.frameRailThickness / 2),
+            zDirection * frameCornerOffset,
           ]}
           receiveShadow
         >

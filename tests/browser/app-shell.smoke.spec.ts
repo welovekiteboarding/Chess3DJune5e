@@ -352,12 +352,24 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     'soft-readable',
   );
   await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-corner-decoration-treatment',
+    'separated-corner-cap',
+  );
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-corner-join-style',
+    'butt-joint',
+  );
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
     'data-square-surface-treatment',
     'single-cap-plane',
   );
   await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
     'data-square-decoration-treatment',
     'none',
+  );
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-frame-rail-span',
+    '7.86',
   );
   await expectResolvedPieceIdentities(page, [
     { color: 'white', square: 'a1' },
@@ -430,6 +442,10 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickCameraButton(page, 'Overhead view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-corner-decoration-treatment',
+    'separated-corner-cap',
+  );
 
   const overheadE2Position = await getProjectedSquarePosition(e2Square);
   const overheadE4Position = await getProjectedSquarePosition(e4Square);
@@ -445,6 +461,10 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect
     .poll(async () => getCameraDistance(cameraState))
     .toBeGreaterThan(defaultDistance);
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-corner-join-style',
+    'butt-joint',
+  );
 
   const zoomedOutDistance = await getCameraDistance(cameraState);
 
@@ -452,6 +472,12 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect
     .poll(async () => getCameraDistance(cameraState))
     .toBeLessThan(zoomedOutDistance);
+  await clickCameraButton(page, 'Tilt down');
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-corner-decoration-treatment',
+    'separated-corner-cap',
+  );
 
   const zoomedE2Position = await getProjectedSquarePosition(e2Square);
   const zoomedE4Position = await getProjectedSquarePosition(e4Square);
@@ -462,6 +488,10 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-frame-rail-span',
+    '7.86',
+  );
   await expect
     .poll(async () => getProjectedSquarePosition(e2Square))
     .toEqual(defaultE2Position);
