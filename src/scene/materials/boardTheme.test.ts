@@ -35,16 +35,22 @@ function getContrastRatio(firstColor: string, secondColor: string) {
 describe('boardTheme', () => {
   it('defines a framed board contract with readable square contrast', () => {
     expect(boardVisualContract.frameStyleId).toBe('walnut-bevel-frame');
-    expect(boardVisualContract.lightSquareMaterialId).toBe('maple-stone-inlay');
-    expect(boardVisualContract.darkSquareMaterialId).toBe('walnut-slate-inlay');
+    expect(boardVisualContract.lightSquareMaterialId).toBe('maple-readable-cap');
+    expect(boardVisualContract.darkSquareMaterialId).toBe('walnut-readable-cap');
     expect(boardVisualContract.legalMarkerStyleId).toBe('glass-dot-marker');
     expect(boardVisualContract.selectedMarkerStyleId).toBe(
       'brass-perimeter-highlight',
     );
+    expect(boardVisualContract.squareSurfaceTreatment).toBe('single-cap-plane');
+    expect(boardVisualContract.squareDecorationTreatment).toBe('recessed-accent');
 
     expect(boardGeometry.frameOverhang).toBeGreaterThan(0.45);
     expect(boardGeometry.frameRailHeight).toBeGreaterThan(0.08);
     expect(boardGeometry.frameRailHeight).toBeLessThan(boardGeometry.squareHeight);
+    expect(boardGeometry.squareBaseHeight + boardGeometry.squareTopHeight).toBeCloseTo(
+      boardGeometry.squareHeight,
+      5,
+    );
     expect(boardGeometry.squareSurfaceY).toBeCloseTo(
       boardGeometry.squareHeight / 2,
       5,
@@ -146,5 +152,26 @@ describe('boardTheme', () => {
     expect(boardGeometry.legalMarkerRingRadius).toBeGreaterThan(
       boardGeometry.legalMarkerRadius,
     );
+  });
+
+  it('separates the playable square top from lower decorative layers', () => {
+    const geometry = boardGeometry as unknown as Record<string, number>;
+
+    expect(geometry.squareTopHeight).toBeGreaterThan(0);
+    expect(geometry.squareBaseHeight).toBeGreaterThan(0);
+    expect(geometry.squareTopInset).toBeGreaterThan(0);
+
+    expect(geometry.squareBaseHeight + geometry.squareTopHeight).toBeCloseTo(
+      boardGeometry.squareHeight,
+      5,
+    );
+
+    const squareBaseTopY =
+      -boardGeometry.squareHeight / 2 + geometry.squareBaseHeight;
+    const squareTopY = boardGeometry.squareSurfaceY;
+    const recessedDetailTopY = squareTopY - geometry.squareTopInset;
+
+    expect(squareBaseTopY).toBeLessThan(squareTopY);
+    expect(recessedDetailTopY).toBeLessThan(squareTopY);
   });
 });

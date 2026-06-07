@@ -461,8 +461,22 @@ export function BoardScene({
                   }
                   position={[x, 0, z]}
                 >
-                  <mesh castShadow receiveShadow>
-                    <boxGeometry args={[squareSize, boardSquareHeight, squareSize]} />
+                  <mesh
+                    castShadow
+                    position={[
+                      0,
+                      (boardGeometry.squareBaseHeight - boardSquareHeight) / 2,
+                      0,
+                    ]}
+                    receiveShadow
+                  >
+                    <boxGeometry
+                      args={[
+                        squareSize,
+                        boardGeometry.squareBaseHeight,
+                        squareSize,
+                      ]}
+                    />
                     <meshStandardMaterial
                       color={squareFinish.edgeColor}
                       metalness={0.08}
@@ -474,7 +488,7 @@ export function BoardScene({
                     position={[
                       0,
                       boardSquareSurfaceY -
-                        boardGeometry.squareFieldHeight / 2,
+                        boardGeometry.squareTopHeight / 2,
                       0,
                     ]}
                     receiveShadow
@@ -482,30 +496,8 @@ export function BoardScene({
                     <boxGeometry
                       args={[
                         boardGeometry.squareFieldScale,
-                        boardGeometry.squareFieldHeight,
+                        boardGeometry.squareTopHeight,
                         boardGeometry.squareFieldScale,
-                      ]}
-                    />
-                    <meshStandardMaterial
-                      color={squareFinish.baseColor}
-                      metalness={0.1}
-                      roughness={0.6}
-                    />
-                  </mesh>
-                  <mesh
-                    castShadow
-                    position={[
-                      0,
-                      boardSquareSurfaceY - boardGeometry.squareInsetHeight / 2,
-                      0,
-                    ]}
-                    receiveShadow
-                  >
-                    <boxGeometry
-                      args={[
-                        boardGeometry.squareInsetScale,
-                        boardGeometry.squareInsetHeight,
-                        boardGeometry.squareInsetScale,
                       ]}
                     />
                     <meshStandardMaterial
@@ -521,12 +513,14 @@ export function BoardScene({
                         ? [
                             0,
                             boardSquareSurfaceY -
+                              boardGeometry.squareTopInset -
                               boardGeometry.squareAccentHeight / 2,
                             squareFinish.accentOffset,
                           ]
                         : [
                             squareFinish.accentOffset,
                             boardSquareSurfaceY -
+                              boardGeometry.squareTopInset -
                               boardGeometry.squareAccentHeight / 2,
                             0,
                           ]
@@ -844,6 +838,13 @@ export function BoardScene({
             moveHighlightVisualContract.legalMarkerTreatment
           }
           data-light-square-material={boardVisualContract.lightSquareMaterialId}
+          data-square-decoration-inset={boardGeometry.squareTopInset}
+          data-square-decoration-treatment={
+            boardVisualContract.squareDecorationTreatment
+          }
+          data-square-surface-treatment={
+            boardVisualContract.squareSurfaceTreatment
+          }
           data-selected-highlight-contrast={
             moveHighlightVisualContract.selectedHighlightContrast
           }

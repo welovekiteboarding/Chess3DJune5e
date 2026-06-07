@@ -1287,11 +1287,23 @@ describe('BoardScene', () => {
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-light-square-material',
-      'maple-stone-inlay',
+      'maple-readable-cap',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-dark-square-material',
-      'walnut-slate-inlay',
+      'walnut-readable-cap',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-square-surface-treatment',
+      'single-cap-plane',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-square-decoration-treatment',
+      'recessed-accent',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-square-decoration-inset',
+      '0.016',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-legal-marker-style',

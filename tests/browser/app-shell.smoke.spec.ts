@@ -348,6 +348,14 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     'data-shadow-style',
     'soft-readable',
   );
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-square-surface-treatment',
+    'single-cap-plane',
+  );
+  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+    'data-square-decoration-treatment',
+    'recessed-accent',
+  );
   await expectResolvedPieceIdentities(page, [
     { color: 'white', square: 'a1' },
     { color: 'white', square: 'c1' },

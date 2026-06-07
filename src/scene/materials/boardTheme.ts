@@ -38,6 +38,7 @@ export const boardGeometry = {
   squareAccentInset: 0.22,
   squareAccentLength: 0.52,
   squareAccentWidth: 0.1,
+  squareBaseHeight: 0.124,
   squareFieldHeight: 0.056,
   squareFieldScale: 0.94,
   squareHeight: 0.18,
@@ -45,14 +46,18 @@ export const boardGeometry = {
   squareInsetScale: 0.8,
   squareSize: 1,
   squareSurfaceY: 0.09,
+  squareTopHeight: 0.056,
+  squareTopInset: 0.016,
 } as const;
 
 export const boardVisualContract = {
-  darkSquareMaterialId: 'walnut-slate-inlay',
+  darkSquareMaterialId: 'walnut-readable-cap',
   frameStyleId: 'walnut-bevel-frame',
   legalMarkerStyleId: 'glass-dot-marker',
-  lightSquareMaterialId: 'maple-stone-inlay',
+  lightSquareMaterialId: 'maple-readable-cap',
   selectedMarkerStyleId: 'brass-perimeter-highlight',
+  squareDecorationTreatment: 'recessed-accent',
+  squareSurfaceTreatment: 'single-cap-plane',
 } as const;
 
 export const boardInteractionPalette = {
