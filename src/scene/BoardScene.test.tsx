@@ -1286,8 +1286,24 @@ describe('BoardScene', () => {
       'separated-corner-cap',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-corner-surface-treatment',
+      'raised-diamond-cap',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-corner-join-style',
       'butt-joint',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-corner-cap-height',
+      '0.052',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-corner-cap-lift',
+      '0.012',
+    );
+    expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
+      'data-corner-cap-size',
+      '0.56',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-frame-style',

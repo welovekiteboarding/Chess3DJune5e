@@ -27,6 +27,7 @@ import {
   boardGeometry,
   boardVisualContract,
   type BoardSquareFinish,
+  getBoardFrameCornerFinish,
   getBoardFrameSegmentFinish,
   getBoardSquareFinish,
 } from './materials';
@@ -746,6 +747,18 @@ export function BoardScene({
             boardVisualContract.cornerDecorationTreatment
           }
           data-corner-join-style={boardVisualContract.cornerJoinStyle}
+          data-corner-surface-treatment={
+            boardVisualContract.cornerSurfaceTreatment
+          }
+          data-corner-cap-height={formatContractGeometryValue(
+            boardGeometry.frameCornerCapHeight,
+          )}
+          data-corner-cap-lift={formatContractGeometryValue(
+            boardGeometry.frameCornerCapLift,
+          )}
+          data-corner-cap-size={formatContractGeometryValue(
+            boardGeometry.frameCornerCapSize,
+          )}
           data-dark-square-material={boardVisualContract.darkSquareMaterialId}
           data-frame-rail-span={formatGroundingValue(boardGeometry.frameRailSpan)}
           data-frame-style={boardVisualContract.frameStyleId}
@@ -998,31 +1011,58 @@ function BoardFrame() {
           </group>
         );
       })}
-      {frameCorners.map(([xDirection, zDirection], cornerIndex) => (
-        <mesh
-          castShadow
-          key={`frame-corner-${cornerIndex}`}
-          position={[
-            xDirection * frameCornerOffset,
-            frameRailY,
-            zDirection * frameCornerOffset,
-          ]}
-          receiveShadow
-        >
-          <boxGeometry
-            args={[
-              boardGeometry.frameCornerSize,
-              boardGeometry.frameRailHeight,
-              boardGeometry.frameCornerSize,
+      {frameCorners.map(([xDirection, zDirection], cornerIndex) => {
+        const cornerFinish = getBoardFrameCornerFinish(cornerIndex);
+        const cornerCapY =
+          boardGeometry.frameRailHeight / 2 +
+          boardGeometry.frameCornerCapLift +
+          boardGeometry.frameCornerCapHeight / 2;
+
+        return (
+          <group
+            key={`frame-corner-${cornerIndex}`}
+            position={[
+              xDirection * frameCornerOffset,
+              frameRailY,
+              zDirection * frameCornerOffset,
             ]}
-          />
-          <meshStandardMaterial
-            color={boardFramePalette.railHighlightColor}
-            metalness={0.14}
-            roughness={0.46}
-          />
-        </mesh>
-      ))}
+          >
+            <mesh castShadow receiveShadow>
+              <boxGeometry
+                args={[
+                  boardGeometry.frameCornerSize,
+                  boardGeometry.frameRailHeight,
+                  boardGeometry.frameCornerSize,
+                ]}
+              />
+              <meshStandardMaterial
+                color={cornerFinish.baseColor}
+                metalness={0.12}
+                roughness={0.52}
+              />
+            </mesh>
+            <mesh
+              castShadow
+              position={[0, cornerCapY, 0]}
+              receiveShadow
+              rotation={[0, Math.PI / 4, 0]}
+            >
+              <boxGeometry
+                args={[
+                  boardGeometry.frameCornerCapSize,
+                  boardGeometry.frameCornerCapHeight,
+                  boardGeometry.frameCornerCapSize,
+                ]}
+              />
+              <meshStandardMaterial
+                color={cornerFinish.capColor}
+                metalness={0.18}
+                roughness={0.36}
+              />
+            </mesh>
+          </group>
+        );
+      })}
       <mesh position={[0, innerTrimY, playableHalfExtent + boardGeometry.innerTrimThickness / 2]}>
         <boxGeometry
           args={[
@@ -1785,6 +1825,10 @@ function interpolatePiecePosition(
 
 function formatGroundingValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function formatContractGeometryValue(value: number) {
+  return `${Number(value.toFixed(3))}`;
 }
 
 function handleSceneSquareClick(

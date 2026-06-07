@@ -2,6 +2,9 @@ import { Color } from 'three';
 
 const boardSpan = 8;
 const frameCornerSize = 0.88;
+const frameCornerCapHeight = 0.052;
+const frameCornerCapLift = 0.012;
+const frameCornerCapSize = 0.56;
 const frameRailThickness = 0.74;
 const frameRailSpan = boardSpan + frameRailThickness - frameCornerSize;
 
@@ -22,6 +25,9 @@ export interface BoardSquareFinish {
 export const boardGeometry = {
   boardHalfSpan: 3.5,
   boardSpan,
+  frameCornerCapHeight,
+  frameCornerCapLift,
+  frameCornerCapSize,
   frameCornerSize,
   frameOverhang: 0.72,
   frameRailHeight: 0.14,
@@ -56,6 +62,7 @@ export const boardGeometry = {
 export const boardVisualContract = {
   cornerDecorationTreatment: 'separated-corner-cap',
   cornerJoinStyle: 'butt-joint',
+  cornerSurfaceTreatment: 'raised-diamond-cap',
   darkSquareMaterialId: 'walnut-stable-matte-cap',
   frameStyleId: 'walnut-bevel-frame',
   legalMarkerStyleId: 'glass-dot-marker',
@@ -118,6 +125,20 @@ export function getBoardFrameSegmentFinish(segmentIndex: number) {
     ),
     metalness: 0.1,
     roughness: 0.5,
+  };
+}
+
+export function getBoardFrameCornerFinish(cornerIndex: number) {
+  const variant = [0.012, -0.01, -0.004, 0.018][cornerIndex % 4];
+
+  return {
+    baseColor: shiftHexColor(boardFramePalette.railColor, 0.004, 0.042, variant),
+    capColor: shiftHexColor(
+      boardFramePalette.railHighlightColor,
+      0.006,
+      0.056,
+      variant * 0.9,
+    ),
   };
 }
 
