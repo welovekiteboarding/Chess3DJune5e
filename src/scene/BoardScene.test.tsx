@@ -1287,11 +1287,11 @@ describe('BoardScene', () => {
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-light-square-material',
-      'maple-readable-cap',
+      'maple-stable-matte-cap',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-dark-square-material',
-      'walnut-readable-cap',
+      'walnut-stable-matte-cap',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-square-surface-treatment',
@@ -1299,11 +1299,11 @@ describe('BoardScene', () => {
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-square-decoration-treatment',
-      'recessed-accent',
+      'none',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-square-decoration-inset',
-      '0.016',
+      '0',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-legal-marker-style',

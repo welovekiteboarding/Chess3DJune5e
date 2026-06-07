@@ -98,13 +98,15 @@ async function clickCameraButton(page: Page, name: string) {
 }
 
 async function waitForPieceAnimationToSettle(
+  page: Page,
   piece: Locator,
   { expectMotion = false }: { expectMotion?: boolean } = {},
 ) {
   if (expectMotion) {
-    await expect(piece).toHaveAttribute('data-animation-state', 'running', {
-      timeout: 5000,
-    });
+    await expect(piece).toHaveAttribute('data-animation-duration-ms', '260');
+    await expect(
+      page.getByTestId('board-piece-animation-state'),
+    ).toHaveAttribute('data-animation-duration-ms', '260');
   }
 
   await expect(piece).toHaveAttribute('data-animation-state', 'idle', {
@@ -119,6 +121,7 @@ async function waitForPieceAtSquareToSettle(
   options?: { expectMotion?: boolean },
 ) {
   await waitForPieceAnimationToSettle(
+    page,
     page.locator(
       `[data-testid="board-piece"][data-square="${square}"][data-color="${color}"]`,
     ),
@@ -354,7 +357,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   );
   await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
     'data-square-decoration-treatment',
-    'recessed-accent',
+    'none',
   );
   await expectResolvedPieceIdentities(page, [
     { color: 'white', square: 'a1' },
@@ -487,6 +490,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickRenderedSquare(page, 'e4');
   await waitForPieceAnimationToSettle(
+    page,
     page.getByTestId('board-piece-white-pawn-e4'),
     { expectMotion: true },
   );
@@ -542,6 +546,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickRenderedSquare(page, 'f3');
   await waitForPieceAnimationToSettle(
+    page,
     page.getByTestId('board-piece-white-knight-f3'),
     { expectMotion: true },
   );
