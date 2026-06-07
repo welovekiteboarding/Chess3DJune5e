@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
-import { DoubleSide, type Camera, MOUSE, TOUCH, Vector3 } from 'three';
+import { type Camera, MOUSE, type Object3D, Raycaster, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   useEffect,
@@ -48,6 +48,9 @@ export interface BoardSceneCanvasProps extends PropsWithChildren {
   onCameraTelemetryChange?: (
     cameraTelemetry: BoardSceneCameraTelemetry,
   ) => void;
+  onSquareCameraRayStatesChange?: (
+    squareCameraRayStates: BoardSquareCameraRayStates,
+  ) => void;
   onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
@@ -76,6 +79,11 @@ interface BoardSquareScreenPosition {
   y: number;
 }
 
+interface BoardSquareCameraRayState {
+  clear: boolean;
+  hit: string;
+}
+
 interface BoardSceneCameraTelemetry {
   maxDistance: number;
   minDistance: number;
@@ -101,10 +109,13 @@ interface PieceAnimationMetadata {
   toSquare: ChessSquare;
 }
 
-type LegalDestinationMarkerVariant = 'dot' | 'perimeter';
+type LegalDestinationMarkerVariant = 'dot';
 
 type BoardSquareScreenPositions = Partial<
   Record<ChessSquare, BoardSquareScreenPosition>
+>;
+type BoardSquareCameraRayStates = Partial<
+  Record<ChessSquare, BoardSquareCameraRayState>
 >;
 
 const boardSquares = createBoardSquares();
@@ -128,28 +139,20 @@ const cameraViewModeTolerance = {
   polar: 0.04,
 } as const;
 const moveHighlightVisualContract = {
-  legalMarkerOccupiedStyle: 'perimeter',
-  legalMarkerPalette: 'sage-green',
+  legalMarkerOccupiedStyle: 'dot',
+  legalMarkerPalette: 'green',
   legalMarkerStyle: 'dot',
-  legalMarkerTreatment: 'flat-dot',
-  selectedHighlightContrast: 'light-dark-ready',
-  selectedHighlightPalette: 'green-gold',
-  selectedHighlightShape: 'perimeter',
-  selectedHighlightTreatment: 'dual-ring',
+  legalMarkerTreatment: 'dot',
+  selectedHighlightContrast: 'single-surface',
+  selectedHighlightPalette: 'green',
+  selectedHighlightShape: 'full-square',
+  selectedHighlightTreatment: 'overlay',
 } as const;
 const moveHighlightPalette = {
-  legalCoreColor: '#edf5cf',
-  legalDotColor: '#77b06d',
-  legalDotGlow: '#d6eab5',
-  legalHaloColor: '#26422e',
-  legalPerimeterColor: '#5d9360',
-  legalPerimeterGlow: '#9fd289',
-  markerContrastColor: '#121d15',
-  selectedAccentColor: '#c09b4a',
-  selectedAccentGlow: '#efd78f',
-  selectedBaseColor: '#2f6f44',
-  selectedBaseGlow: '#95d48f',
-  selectedContrastColor: '#101812',
+  legalDotColor: '#5d9d63',
+  legalDotGlow: '#9ed9a4',
+  selectedOverlayColor: '#4c9f58',
+  selectedOverlayGlow: '#8fd79a',
 } as const;
 const defaultCameraView: BoardCameraView = {
   azimuth: 0,
@@ -195,12 +198,18 @@ const interactionHitTargetMinSizePx = 18;
 const interactionHitTargetMaxSizePx = 72;
 const interactionHitTargetViewportMarginPx = interactionHitTargetMaxSizePx / 2;
 const cameraTarget = new Vector3(0, 0, 0);
+const squareCameraRayTargetLift = 0.005;
+const squareCameraRayDistanceTolerance = 0.01;
+const squareCameraRaycaster = new Raycaster();
+const squareCameraRayOrigin = new Vector3();
+const squareCameraRayDirection = new Vector3();
 
 function DefaultBoardSceneCanvas({
   cameraView = defaultCameraView,
   children,
   className,
   onCameraTelemetryChange,
+  onSquareCameraRayStatesChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: BoardSceneCanvasProps) {
@@ -216,6 +225,7 @@ function DefaultBoardSceneCanvas({
       <BoardSceneCameraRig
         cameraView={cameraView}
         onCameraTelemetryChange={onCameraTelemetryChange}
+        onSquareCameraRayStatesChange={onSquareCameraRayStatesChange}
         onCameraViewChange={onCameraViewChange}
         onSquareScreenPositionsChange={onSquareScreenPositionsChange}
       />
@@ -237,8 +247,8 @@ export function BoardScene({
   const legalDestinationMarkers = Array.from(legalDestinationSet).map((square) => ({
     occupied: occupiedSquares.has(square),
     square,
-    treatment: getLegalDestinationMarkerTreatment(occupiedSquares.has(square)),
-    variant: getLegalDestinationMarkerVariant(occupiedSquares.has(square)),
+    treatment: getLegalDestinationMarkerTreatment(),
+    variant: getLegalDestinationMarkerVariant(),
   }));
   const [cameraView, setCameraView] = useState(defaultCameraView);
   const [cameraTelemetry, setCameraTelemetry] = useState<BoardSceneCameraTelemetry>(
@@ -248,6 +258,8 @@ export function BoardScene({
       screenUpAngle: 0,
     }),
   );
+  const [squareCameraRayStates, setSquareCameraRayStates] =
+    useState<BoardSquareCameraRayStates>({});
   const [squareScreenPositions, setSquareScreenPositions] =
     useState<BoardSquareScreenPositions>({});
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -439,6 +451,16 @@ export function BoardScene({
                 : nextCameraTelemetry,
             );
           }}
+          onSquareCameraRayStatesChange={(nextSquareCameraRayStates) => {
+            setSquareCameraRayStates((currentSquareCameraRayStates) =>
+              areSquareCameraRayStatesEqual(
+                currentSquareCameraRayStates,
+                nextSquareCameraRayStates,
+              )
+                ? currentSquareCameraRayStates
+                : nextSquareCameraRayStates,
+            );
+          }}
           onCameraViewChange={handleCameraViewChange}
           onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
             setSquareScreenPositions(nextSquareScreenPositions);
@@ -451,7 +473,6 @@ export function BoardScene({
             {boardSquares.map((boardSquare) => {
               const squareFinish = getBoardSquareFinish(boardSquare);
               const [x, z] = getSquarePosition(boardSquare);
-              const isOccupied = occupiedSquares.has(boardSquare.square);
               const isSelected = boardSquare.square === selectedSquare;
               const isLegalDestination = legalDestinationSet.has(boardSquare.square);
 
@@ -465,9 +486,7 @@ export function BoardScene({
                 >
                   <BoardSquareTile finish={squareFinish} />
                   {isSelected ? <SelectedSquareHighlight /> : null}
-                  {isLegalDestination ? (
-                    <LegalDestinationMarker occupied={isOccupied} />
-                  ) : null}
+                  {isLegalDestination ? <LegalDestinationMarker /> : null}
                 </group>
               );
             })}
@@ -628,6 +647,12 @@ export function BoardScene({
               <button
                 aria-label={`${boardSquare.square} square`}
                 aria-pressed={isSelected}
+                data-camera-ray-clear={String(
+                  squareCameraRayStates[boardSquare.square]?.clear ?? false,
+                )}
+                data-camera-ray-hit={
+                  squareCameraRayStates[boardSquare.square]?.hit ?? 'none'
+                }
                 data-legal-destination={String(isLegalDestination)}
                 data-piece={pieceDescription}
                 data-screen-visible={String(squareScreenPosition?.visible ?? false)}
@@ -795,6 +820,10 @@ export function BoardScene({
         />
         <div
           data-ambient-fill-intensity={sceneLightingContract.ambientFill.intensity}
+          data-backdrop-treatment={sceneLightingContract.backdrop.treatment}
+          data-board-occluder-policy={
+            sceneLightingContract.backdrop.boardOccluderPolicy
+          }
           data-fill-light={sceneLightingContract.fillLight.id}
           data-key-light={sceneLightingContract.keyLight.id}
           data-key-shadow-map-size={sceneLightingContract.keyLight.shadow.mapSize}
@@ -818,6 +847,7 @@ function SceneBackdrop() {
         position={[0, -0.34, 0]}
         receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
+        userData={{ boardSceneOcclusionRole: 'backdrop-floor' }}
       >
         <circleGeometry args={[11.5, 64]} />
         <meshStandardMaterial
@@ -825,16 +855,6 @@ function SceneBackdrop() {
           emissive={backdrop.floorEmissive}
           emissiveIntensity={0.28}
           roughness={0.96}
-        />
-      </mesh>
-      <mesh position={[0, 4.8, -9.2]}>
-        <planeGeometry args={[24, 16]} />
-        <meshStandardMaterial
-          color={backdrop.wallColor}
-          emissive={backdrop.wallEmissive}
-          emissiveIntensity={0.22}
-          roughness={0.98}
-          side={DoubleSide}
         />
       </mesh>
     </>
@@ -880,6 +900,7 @@ function BoardSquareTile({ finish }: { finish: BoardSquareFinish }) {
         castShadow
         position={[0, boardSquareSurfaceY - boardGeometry.squareTopHeight / 2, 0]}
         receiveShadow
+        userData={{ boardSceneOcclusionRole: 'board-square-top' }}
       >
         <boxGeometry
           args={[
@@ -1108,261 +1129,73 @@ function BoardFrame() {
 }
 
 function SelectedSquareHighlight() {
-  const markerY = boardSquareSurfaceY + boardGeometry.markerLift;
+  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.3;
 
   return (
-    <>
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.selectedContrastColor}
-        depth={boardGeometry.selectedFrameDepth * 0.56}
-        emissive={moveHighlightPalette.selectedContrastColor}
-        emissiveIntensity={0}
-        opacity={0.88}
-        roughness={0.76}
-        thickness={boardGeometry.selectedFrameThickness + 0.16}
-        y={markerY - boardGeometry.selectedFrameDepth * 0.16}
+    <mesh
+      position={[0, markerY, 0]}
+      renderOrder={10}
+      rotation={[-Math.PI / 2, 0, 0]}
+      userData={{
+        boardSceneOcclusionBehavior: 'ignore',
+        boardSceneOcclusionRole: 'selected-square-highlight',
+      }}
+    >
+      <planeGeometry args={[squareSize * 0.98, squareSize * 0.98]} />
+      <meshStandardMaterial
+        color={moveHighlightPalette.selectedOverlayColor}
+        depthWrite={false}
+        emissive={moveHighlightPalette.selectedOverlayGlow}
+        emissiveIntensity={0.14}
+        metalness={0.04}
+        opacity={0.34}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
+        roughness={0.46}
+        transparent
       />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.selectedBaseColor}
-        depth={boardGeometry.selectedFrameDepth * 0.82}
-        emissive={moveHighlightPalette.selectedBaseGlow}
-        emissiveIntensity={0.34}
-        roughness={0.38}
-        thickness={boardGeometry.selectedFrameThickness + 0.03}
-        y={markerY}
-      />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.selectedAccentColor}
-        depth={boardGeometry.selectedFrameDepth * 0.52}
-        emissive={moveHighlightPalette.selectedAccentGlow}
-        emissiveIntensity={0.2}
-        metalness={0.2}
-        roughness={0.28}
-        thickness={boardGeometry.selectedFrameThickness * 0.4}
-        y={markerY + boardGeometry.selectedFrameDepth * 0.18}
-      />
-    </>
+    </mesh>
   );
 }
 
-function LegalDestinationMarker({ occupied }: { occupied: boolean }) {
-  if (occupied) {
-    return <LegalDestinationPerimeterMarker />;
-  }
-
-  return <LegalDestinationDotMarker />;
-}
-
-function LegalDestinationPerimeterMarker() {
-  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.72;
+function LegalDestinationMarker() {
+  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.34;
 
   return (
-    <>
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.markerContrastColor}
-        depth={boardGeometry.legalMarkerHeight * 0.34}
-        emissive={moveHighlightPalette.markerContrastColor}
-        emissiveIntensity={0}
-        opacity={0.82}
-        roughness={0.82}
-        thickness={boardGeometry.selectedFrameThickness * 0.68}
-        y={markerY - boardGeometry.legalMarkerHeight * 0.08}
-      />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.legalPerimeterColor}
-        depth={boardGeometry.legalMarkerHeight * 0.52}
-        emissive={moveHighlightPalette.legalPerimeterGlow}
-        emissiveIntensity={0.18}
-        roughness={0.42}
-        thickness={boardGeometry.selectedFrameThickness * 0.48}
-        y={markerY}
-      />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.legalCoreColor}
-        depth={boardGeometry.legalMarkerHeight * 0.22}
+    <mesh
+      position={[0, markerY, 0]}
+      renderOrder={11}
+      rotation={[-Math.PI / 2, 0, 0]}
+      userData={{
+        boardSceneOcclusionBehavior: 'ignore',
+        boardSceneOcclusionRole: 'legal-destination-marker',
+      }}
+    >
+      <circleGeometry args={[boardGeometry.legalMarkerRadius * 0.82, 32]} />
+      <meshStandardMaterial
+        color={moveHighlightPalette.legalDotColor}
+        depthWrite={false}
         emissive={moveHighlightPalette.legalDotGlow}
         emissiveIntensity={0.14}
-        roughness={0.28}
-        thickness={boardGeometry.selectedFrameThickness * 0.26}
-        y={markerY + boardGeometry.legalMarkerHeight * 0.16}
+        metalness={0.02}
+        opacity={0.46}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
+        roughness={0.42}
+        transparent
       />
-    </>
+    </mesh>
   );
 }
 
-function LegalDestinationDotMarker() {
-  const markerY =
-    boardSquareSurfaceY +
-    boardGeometry.markerLift * 0.78 +
-    boardGeometry.legalMarkerHeight / 2;
-
-  return (
-    <>
-      <mesh position={[0, markerY - boardGeometry.legalMarkerHeight * 0.3, 0]}>
-        <cylinderGeometry
-          args={[
-            boardGeometry.legalMarkerRadius * 1.1,
-            boardGeometry.legalMarkerRadius * 1.1,
-            boardGeometry.legalMarkerHeight * 0.22,
-            40,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.markerContrastColor}
-          emissive={moveHighlightPalette.markerContrastColor}
-          emissiveIntensity={0}
-          opacity={0.84}
-          roughness={0.82}
-          transparent
-        />
-      </mesh>
-      <mesh
-        position={[0, markerY - boardGeometry.legalMarkerHeight * 0.02, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <torusGeometry
-          args={[
-            boardGeometry.legalMarkerRingRadius * 0.74,
-            boardGeometry.legalMarkerRingTube * 0.5,
-            18,
-            42,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.legalHaloColor}
-          emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.12}
-          metalness={0.08}
-          opacity={0.92}
-          roughness={0.62}
-          transparent
-        />
-      </mesh>
-      <mesh position={[0, markerY, 0]}>
-        <cylinderGeometry
-          args={[
-            boardGeometry.legalMarkerRadius * 0.7,
-            boardGeometry.legalMarkerRadius * 0.82,
-            boardGeometry.legalMarkerHeight * 0.32,
-            36,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.legalDotColor}
-          emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.16}
-          metalness={0.06}
-          roughness={0.36}
-        />
-      </mesh>
-      <mesh position={[0, markerY + boardGeometry.legalMarkerHeight * 0.12, 0]}>
-        <sphereGeometry
-          args={[
-            boardGeometry.legalMarkerRadius * 0.22,
-            18,
-            18,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.legalCoreColor}
-          emissive={moveHighlightPalette.legalDotGlow}
-          emissiveIntensity={0.2}
-          metalness={0.08}
-          roughness={0.22}
-        />
-      </mesh>
-    </>
-  );
+function getLegalDestinationMarkerVariant(): LegalDestinationMarkerVariant {
+  return moveHighlightVisualContract.legalMarkerStyle;
 }
 
-function PerimeterMarkerFrame({
-  color,
-  depth,
-  emissive,
-  emissiveIntensity,
-  metalness = 0.1,
-  opacity,
-  roughness,
-  thickness,
-  y,
-}: {
-  color: string;
-  depth: number;
-  emissive: string;
-  emissiveIntensity: number;
-  metalness?: number;
-  opacity?: number;
-  roughness: number;
-  thickness: number;
-  y: number;
-}) {
-  const offset = squareSize / 2 - thickness / 2;
-  const sideLength = squareSize - thickness * 2;
-
-  return (
-    <>
-      <mesh position={[0, y, offset]}>
-        <boxGeometry args={[squareSize, depth, thickness]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-      <mesh position={[0, y, -offset]}>
-        <boxGeometry args={[squareSize, depth, thickness]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-      <mesh position={[offset, y, 0]}>
-        <boxGeometry args={[thickness, depth, sideLength]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-      <mesh position={[-offset, y, 0]}>
-        <boxGeometry args={[thickness, depth, sideLength]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-    </>
-  );
-}
-
-function getLegalDestinationMarkerVariant(
-  occupied: boolean,
-): LegalDestinationMarkerVariant {
-  return occupied
-    ? moveHighlightVisualContract.legalMarkerOccupiedStyle
-    : moveHighlightVisualContract.legalMarkerStyle;
-}
-
-function getLegalDestinationMarkerTreatment(occupied: boolean) {
-  return occupied ? 'capture-ring' : moveHighlightVisualContract.legalMarkerTreatment;
+function getLegalDestinationMarkerTreatment() {
+  return moveHighlightVisualContract.legalMarkerTreatment;
 }
 
 type BoardCameraAction =
@@ -1378,6 +1211,7 @@ type BoardCameraAction =
 function BoardSceneCameraRig({
   cameraView,
   onCameraTelemetryChange,
+  onSquareCameraRayStatesChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: {
@@ -1385,15 +1219,20 @@ function BoardSceneCameraRig({
   onCameraTelemetryChange?: (
     cameraTelemetry: BoardSceneCameraTelemetry,
   ) => void;
+  onSquareCameraRayStatesChange?: (
+    squareCameraRayStates: BoardSquareCameraRayStates,
+  ) => void;
   onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
   ) => void;
 }) {
   const camera = useThree((state) => state.camera);
+  const scene = useThree((state) => state.scene);
   const size = useThree((state) => state.size);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const lastCameraTelemetrySnapshotRef = useRef('');
+  const lastSquareCameraRayStatesSnapshotRef = useRef('');
   const lastSquareScreenPositionsRef = useRef('');
   const lastCameraViewSnapshotRef = useRef(getCameraViewSnapshot(cameraView));
   const lastPublishedCameraViewRef = useRef(cameraView);
@@ -1428,19 +1267,41 @@ function BoardSceneCameraRig({
       onSquareScreenPositionsChange,
       size,
     });
+    publishSquareCameraRayStates({
+      camera,
+      lastSquareCameraRayStatesSnapshotRef,
+      onSquareCameraRayStatesChange,
+      scene,
+      size,
+    });
     publishCameraTelemetry({
       camera,
       lastCameraTelemetrySnapshotRef,
       onCameraTelemetryChange,
       size,
     });
-  }, [camera, cameraView, onCameraTelemetryChange, onSquareScreenPositionsChange, size]);
+  }, [
+    camera,
+    cameraView,
+    onCameraTelemetryChange,
+    onSquareCameraRayStatesChange,
+    onSquareScreenPositionsChange,
+    scene,
+    size,
+  ]);
 
   useFrame(() => {
     publishProjectedSquarePositions({
       camera,
       lastSquareScreenPositionsRef,
       onSquareScreenPositionsChange,
+      size,
+    });
+    publishSquareCameraRayStates({
+      camera,
+      lastSquareCameraRayStatesSnapshotRef,
+      onSquareCameraRayStatesChange,
+      scene,
       size,
     });
     publishCameraTelemetry({
@@ -2034,12 +1895,34 @@ function areCameraTelemetryEqual(
   return (
     currentCameraTelemetry.maxDistance === nextCameraTelemetry.maxDistance &&
     currentCameraTelemetry.minDistance === nextCameraTelemetry.minDistance &&
-    currentCameraTelemetry.screenUpAngle === nextCameraTelemetry.screenUpAngle
+      currentCameraTelemetry.screenUpAngle === nextCameraTelemetry.screenUpAngle
+  );
+}
+
+function areSquareCameraRayStatesEqual(
+  currentSquareCameraRayStates: BoardSquareCameraRayStates,
+  nextSquareCameraRayStates: BoardSquareCameraRayStates,
+) {
+  return (
+    getSquareCameraRayStatesSnapshot(currentSquareCameraRayStates) ===
+    getSquareCameraRayStatesSnapshot(nextSquareCameraRayStates)
   );
 }
 
 function getCameraViewSnapshot(cameraView: BoardCameraView): string {
   return `${cameraView.viewMode}:${roundToTwoDecimals(cameraView.azimuth)}:${roundToTwoDecimals(cameraView.distance)}:${roundToTwoDecimals(cameraView.polar)}`;
+}
+
+function getSquareCameraRayStatesSnapshot(
+  squareCameraRayStates: BoardSquareCameraRayStates,
+) {
+  return boardSquares
+    .map((boardSquare) => {
+      const squareCameraRayState = squareCameraRayStates[boardSquare.square];
+
+      return `${boardSquare.square}:${Number(squareCameraRayState?.clear ?? false)}:${squareCameraRayState?.hit ?? 'none'}`;
+    })
+    .join('|');
 }
 
 function setHitTargetPointerEvents(
@@ -2202,6 +2085,41 @@ function publishProjectedSquarePositions({
   onSquareScreenPositionsChange(projectedSquarePositions);
 }
 
+function publishSquareCameraRayStates({
+  camera,
+  lastSquareCameraRayStatesSnapshotRef,
+  onSquareCameraRayStatesChange,
+  scene,
+  size,
+}: {
+  camera: Camera;
+  lastSquareCameraRayStatesSnapshotRef: { current: string };
+  onSquareCameraRayStatesChange?: (
+    squareCameraRayStates: BoardSquareCameraRayStates,
+  ) => void;
+  scene: Object3D;
+  size: { height: number; width: number };
+}) {
+  if (!onSquareCameraRayStatesChange) {
+    return;
+  }
+
+  const {
+    squareCameraRayStates,
+    squareCameraRayStatesSnapshot,
+  } = getSquareCameraRayStates(camera, scene, size);
+
+  if (
+    squareCameraRayStatesSnapshot ===
+    lastSquareCameraRayStatesSnapshotRef.current
+  ) {
+    return;
+  }
+
+  lastSquareCameraRayStatesSnapshotRef.current = squareCameraRayStatesSnapshot;
+  onSquareCameraRayStatesChange(squareCameraRayStates);
+}
+
 function publishCameraTelemetry({
   camera,
   lastCameraTelemetrySnapshotRef,
@@ -2290,6 +2208,112 @@ function getProjectedSquarePositions(
     projectedSquarePositions,
     projectedSquarePositionsSnapshot,
   };
+}
+
+function getSquareCameraRayStates(
+  camera: Camera,
+  scene: Object3D,
+  size: { height: number; width: number },
+) {
+  const squareCameraRayStates: BoardSquareCameraRayStates = {};
+
+  camera.updateMatrixWorld();
+  scene.updateMatrixWorld(true);
+
+  const squareCameraRayStatesSnapshot = boardSquares
+    .map((boardSquare) => {
+      const [x, z] = getSquarePosition(boardSquare);
+      const projectedSquarePosition = projectBoardPositionToScreen({
+        camera,
+        size,
+        x,
+        y: boardSquareSurfaceY,
+        z,
+      });
+      const squareCameraRayState = projectedSquarePosition.visible
+        ? getSquareCameraRayState({
+            camera,
+            scene,
+            x,
+            y: boardSquareSurfaceY + squareCameraRayTargetLift,
+            z,
+          })
+        : {
+            clear: false,
+            hit: 'out-of-view',
+          };
+
+      squareCameraRayStates[boardSquare.square] = squareCameraRayState;
+
+      return `${boardSquare.square}:${Number(squareCameraRayState.clear)}:${squareCameraRayState.hit}`;
+    })
+    .join('|');
+
+  return {
+    squareCameraRayStates,
+    squareCameraRayStatesSnapshot,
+  };
+}
+
+function getSquareCameraRayState({
+  camera,
+  scene,
+  x,
+  y,
+  z,
+}: {
+  camera: Camera;
+  scene: Object3D;
+  x: number;
+  y: number;
+  z: number;
+}): BoardSquareCameraRayState {
+  squareCameraRayOrigin.copy(camera.position);
+  squareCameraRayDirection.set(x, y, z).sub(squareCameraRayOrigin);
+  const targetDistance = squareCameraRayDirection.length();
+
+  if (targetDistance <= 0) {
+    return {
+      clear: true,
+      hit: 'none',
+    };
+  }
+
+  squareCameraRayDirection.normalize();
+  squareCameraRaycaster.set(squareCameraRayOrigin, squareCameraRayDirection);
+
+  const firstOccludingIntersection = squareCameraRaycaster
+    .intersectObjects(scene.children, true)
+    .find(
+      (intersection) =>
+        intersection.distance <
+          targetDistance - squareCameraRayDistanceTolerance &&
+        !shouldIgnoreSquareCameraRayIntersection(intersection.object),
+    );
+
+  if (!firstOccludingIntersection) {
+    return {
+      clear: true,
+      hit: 'none',
+    };
+  }
+
+  return {
+    clear: false,
+    hit: getSquareCameraRayIntersectionRole(firstOccludingIntersection.object),
+  };
+}
+
+function shouldIgnoreSquareCameraRayIntersection(object: Object3D) {
+  return object.userData.boardSceneOcclusionBehavior === 'ignore';
+}
+
+function getSquareCameraRayIntersectionRole(object: Object3D) {
+  return (
+    object.userData.boardSceneOcclusionRole ??
+    object.parent?.userData.boardSceneOcclusionRole ??
+    object.type.toLowerCase()
+  );
 }
 
 function projectBoardPositionToScreen({

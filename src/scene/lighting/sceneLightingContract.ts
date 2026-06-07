@@ -5,10 +5,10 @@ export const sceneLightingContract = {
     role: 'ambient-fill',
   },
   backdrop: {
+    boardOccluderPolicy: 'none',
     floorColor: '#16202b',
     floorEmissive: '#0d131b',
-    wallColor: '#16212d',
-    wallEmissive: '#0b1016',
+    treatment: 'floor-only',
   },
   fillLight: {
     color: '#abc2db',

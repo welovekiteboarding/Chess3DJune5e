@@ -6,6 +6,8 @@ interface ProjectedSquarePosition {
   y: number;
 }
 
+const backdropOcclusionProbeSquares = ['d4', 'e4', 'd5', 'e5'] as const;
+
 function getSquareButton(square: string) {
   return `[data-testid="board-square-${square}"]`;
 }
@@ -99,6 +101,41 @@ async function expectStableCornerSurfaceContract(
     'data-corner-cap-size',
     '0.56',
   );
+}
+
+async function expectBackdropRemovalContract(
+  boardLightingContract: Locator,
+  boardVisualContract: Locator,
+) {
+  await expect(boardLightingContract).toHaveAttribute(
+    'data-backdrop-treatment',
+    'floor-only',
+  );
+  await expect(boardLightingContract).toHaveAttribute(
+    'data-board-occluder-policy',
+    'none',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-selected-highlight-treatment',
+    'overlay',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-legal-marker-treatment',
+    'dot',
+  );
+}
+
+async function expectBackdropAbsentFromCurrentCamera(
+  page: Page,
+  probeSquares: readonly string[] = backdropOcclusionProbeSquares,
+) {
+  for (const square of probeSquares) {
+    const squareButton = page.locator(getSquareButton(square));
+
+    await expect(squareButton).toHaveAttribute('data-screen-visible', 'true');
+    await expect(squareButton).toHaveAttribute('data-camera-ray-clear', 'true');
+    await expect(squareButton).toHaveAttribute('data-camera-ray-hit', 'none');
+  }
 }
 
 async function clickRenderedSquare(page: Page, square: string) {
@@ -260,9 +297,12 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
   const cameraState = page.getByTestId('board-camera-state');
   const boardCanvasShell = page.getByTestId('board-scene-canvas-shell');
   const boardVisualContract = page.getByTestId('board-visual-contract');
+  const boardLightingContract = page.getByTestId('board-lighting-contract');
 
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropRemovalContract(boardLightingContract, boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   const defaultCameraMetrics = await getCameraMetrics(cameraState);
 
@@ -280,6 +320,7 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
   expect(rotatedRightMetrics.azimuth).toBeGreaterThan(Math.PI * 2);
   expect(rotatedRightMetrics.screenUpAngle).toBeCloseTo(0, 2);
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   for (let rotationStep = 0; rotationStep < 6; rotationStep += 1) {
     await clickCameraButton(page, 'Rotate left');
@@ -291,6 +332,7 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
   expect(rotatedLeftMetrics.screenUpAngle).toBeCloseTo(0, 2);
   expect(rotatedLeftMetrics.polar).toBeCloseTo(defaultCameraMetrics.polar, 2);
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   await boardCanvasShell.hover();
   await page.mouse.wheel(0, 180);
@@ -303,6 +345,7 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
 
   expect(zoomedOutMetrics.screenUpAngle).toBeCloseTo(0, 2);
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   await page.mouse.wheel(0, -260);
   await expect
@@ -323,6 +366,7 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
 
   expect(maxZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   await boardCanvasShell.hover();
 
@@ -338,6 +382,7 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
 
   expect(minZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
@@ -354,6 +399,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   const cameraState = page.getByTestId('board-camera-state');
   const boardVisualContract = page.getByTestId('board-visual-contract');
+  const boardLightingContract = page.getByTestId('board-lighting-contract');
   const e2Square = page.locator(getSquareButton('e2'));
   const e3Square = page.locator(getSquareButton('e3'));
   const e4Square = page.locator(getSquareButton('e4'));
@@ -390,6 +436,8 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     'soft-readable',
   );
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropRemovalContract(boardLightingContract, boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
   await expect(boardVisualContract).toHaveAttribute(
     'data-square-surface-treatment',
     'single-cap-plane',
@@ -474,6 +522,8 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await clickCameraButton(page, 'Overhead view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropRemovalContract(boardLightingContract, boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   const overheadE2Position = await getProjectedSquarePosition(e2Square);
   const overheadE4Position = await getProjectedSquarePosition(e4Square);
@@ -500,6 +550,8 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await clickCameraButton(page, 'Tilt down');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
   await expectStableCornerSurfaceContract(boardVisualContract);
+  await expectBackdropRemovalContract(boardLightingContract, boardVisualContract);
+  await expectBackdropAbsentFromCurrentCamera(page);
 
   const zoomedE2Position = await getProjectedSquarePosition(e2Square);
   const zoomedE4Position = await getProjectedSquarePosition(e4Square);
@@ -530,15 +582,19 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('selected-square-highlight-e2')).toHaveCount(1);
   await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
-    'data-highlight-contrast',
-    'light-dark-ready',
+    'data-highlight-treatment',
+    'overlay',
+  );
+  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
+    'data-highlight-shape',
+    'full-square',
   );
   await expect(e3Square).toHaveAttribute('data-legal-destination', 'true');
   await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
   await expect(page.getByTestId('legal-destination-marker-e3')).toHaveCount(1);
   await expect(page.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
     'data-marker-treatment',
-    'flat-dot',
+    'dot',
   );
 
   await clickRenderedSquare(page, 'e4');
@@ -587,6 +643,9 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await clickCameraButton(page, 'Rotate left');
   await clickCameraButton(page, 'Zoom out');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await expectBackdropRemovalContract(boardLightingContract, boardVisualContract);
+  expect((await getProjectedSquarePosition(e2Square)).visible).toBe(true);
+  expect((await getProjectedSquarePosition(g1Square)).visible).toBe(true);
 
   await clickRenderedSquare(page, 'g1');
   await expect(g1Square).toHaveAttribute('aria-pressed', 'true');
@@ -594,7 +653,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect(f3Square).toHaveAttribute('data-legal-destination', 'true');
   await expect(page.getByTestId('legal-destination-marker-f3')).toHaveAttribute(
     'data-marker-treatment',
-    'flat-dot',
+    'dot',
   );
 
   await clickRenderedSquare(page, 'f3');

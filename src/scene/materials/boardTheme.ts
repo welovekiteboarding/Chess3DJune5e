@@ -65,9 +65,9 @@ export const boardVisualContract = {
   cornerSurfaceTreatment: 'raised-diamond-cap',
   darkSquareMaterialId: 'walnut-stable-matte-cap',
   frameStyleId: 'walnut-bevel-frame',
-  legalMarkerStyleId: 'glass-dot-marker',
+  legalMarkerStyleId: 'single-overlay-dot',
   lightSquareMaterialId: 'maple-stable-matte-cap',
-  selectedMarkerStyleId: 'brass-perimeter-highlight',
+  selectedMarkerStyleId: 'single-overlay-square',
   squareDecorationTreatment: 'none',
   squareSurfaceTreatment: 'single-cap-plane',
 } as const;
