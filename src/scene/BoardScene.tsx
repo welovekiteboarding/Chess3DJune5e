@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
-import { DoubleSide, type Camera, MOUSE, TOUCH, Vector3 } from 'three';
+import { type Camera, MOUSE, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   useEffect,
@@ -101,7 +101,7 @@ interface PieceAnimationMetadata {
   toSquare: ChessSquare;
 }
 
-type LegalDestinationMarkerVariant = 'dot' | 'perimeter';
+type LegalDestinationMarkerVariant = 'dot';
 
 type BoardSquareScreenPositions = Partial<
   Record<ChessSquare, BoardSquareScreenPosition>
@@ -128,28 +128,20 @@ const cameraViewModeTolerance = {
   polar: 0.04,
 } as const;
 const moveHighlightVisualContract = {
-  legalMarkerOccupiedStyle: 'perimeter',
-  legalMarkerPalette: 'sage-green',
+  legalMarkerOccupiedStyle: 'dot',
+  legalMarkerPalette: 'green',
   legalMarkerStyle: 'dot',
-  legalMarkerTreatment: 'flat-dot',
-  selectedHighlightContrast: 'light-dark-ready',
-  selectedHighlightPalette: 'green-gold',
-  selectedHighlightShape: 'perimeter',
-  selectedHighlightTreatment: 'dual-ring',
+  legalMarkerTreatment: 'dot',
+  selectedHighlightContrast: 'single-surface',
+  selectedHighlightPalette: 'green',
+  selectedHighlightShape: 'full-square',
+  selectedHighlightTreatment: 'overlay',
 } as const;
 const moveHighlightPalette = {
-  legalCoreColor: '#edf5cf',
-  legalDotColor: '#77b06d',
-  legalDotGlow: '#d6eab5',
-  legalHaloColor: '#26422e',
-  legalPerimeterColor: '#5d9360',
-  legalPerimeterGlow: '#9fd289',
-  markerContrastColor: '#121d15',
-  selectedAccentColor: '#c09b4a',
-  selectedAccentGlow: '#efd78f',
-  selectedBaseColor: '#2f6f44',
-  selectedBaseGlow: '#95d48f',
-  selectedContrastColor: '#101812',
+  legalDotColor: '#5d9d63',
+  legalDotGlow: '#9ed9a4',
+  selectedOverlayColor: '#4c9f58',
+  selectedOverlayGlow: '#8fd79a',
 } as const;
 const defaultCameraView: BoardCameraView = {
   azimuth: 0,
@@ -237,8 +229,8 @@ export function BoardScene({
   const legalDestinationMarkers = Array.from(legalDestinationSet).map((square) => ({
     occupied: occupiedSquares.has(square),
     square,
-    treatment: getLegalDestinationMarkerTreatment(occupiedSquares.has(square)),
-    variant: getLegalDestinationMarkerVariant(occupiedSquares.has(square)),
+    treatment: getLegalDestinationMarkerTreatment(),
+    variant: getLegalDestinationMarkerVariant(),
   }));
   const [cameraView, setCameraView] = useState(defaultCameraView);
   const [cameraTelemetry, setCameraTelemetry] = useState<BoardSceneCameraTelemetry>(
@@ -451,7 +443,6 @@ export function BoardScene({
             {boardSquares.map((boardSquare) => {
               const squareFinish = getBoardSquareFinish(boardSquare);
               const [x, z] = getSquarePosition(boardSquare);
-              const isOccupied = occupiedSquares.has(boardSquare.square);
               const isSelected = boardSquare.square === selectedSquare;
               const isLegalDestination = legalDestinationSet.has(boardSquare.square);
 
@@ -465,9 +456,7 @@ export function BoardScene({
                 >
                   <BoardSquareTile finish={squareFinish} />
                   {isSelected ? <SelectedSquareHighlight /> : null}
-                  {isLegalDestination ? (
-                    <LegalDestinationMarker occupied={isOccupied} />
-                  ) : null}
+                  {isLegalDestination ? <LegalDestinationMarker /> : null}
                 </group>
               );
             })}
@@ -795,6 +784,10 @@ export function BoardScene({
         />
         <div
           data-ambient-fill-intensity={sceneLightingContract.ambientFill.intensity}
+          data-backdrop-treatment={sceneLightingContract.backdrop.treatment}
+          data-board-occluder-policy={
+            sceneLightingContract.backdrop.boardOccluderPolicy
+          }
           data-fill-light={sceneLightingContract.fillLight.id}
           data-key-light={sceneLightingContract.keyLight.id}
           data-key-shadow-map-size={sceneLightingContract.keyLight.shadow.mapSize}
@@ -825,16 +818,6 @@ function SceneBackdrop() {
           emissive={backdrop.floorEmissive}
           emissiveIntensity={0.28}
           roughness={0.96}
-        />
-      </mesh>
-      <mesh position={[0, 4.8, -9.2]}>
-        <planeGeometry args={[24, 16]} />
-        <meshStandardMaterial
-          color={backdrop.wallColor}
-          emissive={backdrop.wallEmissive}
-          emissiveIntensity={0.22}
-          roughness={0.98}
-          side={DoubleSide}
         />
       </mesh>
     </>
@@ -1108,261 +1091,65 @@ function BoardFrame() {
 }
 
 function SelectedSquareHighlight() {
-  const markerY = boardSquareSurfaceY + boardGeometry.markerLift;
+  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.3;
 
   return (
-    <>
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.selectedContrastColor}
-        depth={boardGeometry.selectedFrameDepth * 0.56}
-        emissive={moveHighlightPalette.selectedContrastColor}
-        emissiveIntensity={0}
-        opacity={0.88}
-        roughness={0.76}
-        thickness={boardGeometry.selectedFrameThickness + 0.16}
-        y={markerY - boardGeometry.selectedFrameDepth * 0.16}
+    <mesh
+      position={[0, markerY, 0]}
+      renderOrder={10}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <planeGeometry args={[squareSize * 0.98, squareSize * 0.98]} />
+      <meshStandardMaterial
+        color={moveHighlightPalette.selectedOverlayColor}
+        depthWrite={false}
+        emissive={moveHighlightPalette.selectedOverlayGlow}
+        emissiveIntensity={0.14}
+        metalness={0.04}
+        opacity={0.34}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
+        roughness={0.46}
+        transparent
       />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.selectedBaseColor}
-        depth={boardGeometry.selectedFrameDepth * 0.82}
-        emissive={moveHighlightPalette.selectedBaseGlow}
-        emissiveIntensity={0.34}
-        roughness={0.38}
-        thickness={boardGeometry.selectedFrameThickness + 0.03}
-        y={markerY}
-      />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.selectedAccentColor}
-        depth={boardGeometry.selectedFrameDepth * 0.52}
-        emissive={moveHighlightPalette.selectedAccentGlow}
-        emissiveIntensity={0.2}
-        metalness={0.2}
-        roughness={0.28}
-        thickness={boardGeometry.selectedFrameThickness * 0.4}
-        y={markerY + boardGeometry.selectedFrameDepth * 0.18}
-      />
-    </>
+    </mesh>
   );
 }
 
-function LegalDestinationMarker({ occupied }: { occupied: boolean }) {
-  if (occupied) {
-    return <LegalDestinationPerimeterMarker />;
-  }
-
-  return <LegalDestinationDotMarker />;
-}
-
-function LegalDestinationPerimeterMarker() {
-  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.72;
+function LegalDestinationMarker() {
+  const markerY = boardSquareSurfaceY + boardGeometry.markerLift * 0.34;
 
   return (
-    <>
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.markerContrastColor}
-        depth={boardGeometry.legalMarkerHeight * 0.34}
-        emissive={moveHighlightPalette.markerContrastColor}
-        emissiveIntensity={0}
-        opacity={0.82}
-        roughness={0.82}
-        thickness={boardGeometry.selectedFrameThickness * 0.68}
-        y={markerY - boardGeometry.legalMarkerHeight * 0.08}
-      />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.legalPerimeterColor}
-        depth={boardGeometry.legalMarkerHeight * 0.52}
-        emissive={moveHighlightPalette.legalPerimeterGlow}
-        emissiveIntensity={0.18}
-        roughness={0.42}
-        thickness={boardGeometry.selectedFrameThickness * 0.48}
-        y={markerY}
-      />
-      <PerimeterMarkerFrame
-        color={moveHighlightPalette.legalCoreColor}
-        depth={boardGeometry.legalMarkerHeight * 0.22}
+    <mesh
+      position={[0, markerY, 0]}
+      renderOrder={11}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <circleGeometry args={[boardGeometry.legalMarkerRadius * 0.82, 32]} />
+      <meshStandardMaterial
+        color={moveHighlightPalette.legalDotColor}
+        depthWrite={false}
         emissive={moveHighlightPalette.legalDotGlow}
         emissiveIntensity={0.14}
-        roughness={0.28}
-        thickness={boardGeometry.selectedFrameThickness * 0.26}
-        y={markerY + boardGeometry.legalMarkerHeight * 0.16}
+        metalness={0.02}
+        opacity={0.46}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
+        roughness={0.42}
+        transparent
       />
-    </>
+    </mesh>
   );
 }
 
-function LegalDestinationDotMarker() {
-  const markerY =
-    boardSquareSurfaceY +
-    boardGeometry.markerLift * 0.78 +
-    boardGeometry.legalMarkerHeight / 2;
-
-  return (
-    <>
-      <mesh position={[0, markerY - boardGeometry.legalMarkerHeight * 0.3, 0]}>
-        <cylinderGeometry
-          args={[
-            boardGeometry.legalMarkerRadius * 1.1,
-            boardGeometry.legalMarkerRadius * 1.1,
-            boardGeometry.legalMarkerHeight * 0.22,
-            40,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.markerContrastColor}
-          emissive={moveHighlightPalette.markerContrastColor}
-          emissiveIntensity={0}
-          opacity={0.84}
-          roughness={0.82}
-          transparent
-        />
-      </mesh>
-      <mesh
-        position={[0, markerY - boardGeometry.legalMarkerHeight * 0.02, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <torusGeometry
-          args={[
-            boardGeometry.legalMarkerRingRadius * 0.74,
-            boardGeometry.legalMarkerRingTube * 0.5,
-            18,
-            42,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.legalHaloColor}
-          emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.12}
-          metalness={0.08}
-          opacity={0.92}
-          roughness={0.62}
-          transparent
-        />
-      </mesh>
-      <mesh position={[0, markerY, 0]}>
-        <cylinderGeometry
-          args={[
-            boardGeometry.legalMarkerRadius * 0.7,
-            boardGeometry.legalMarkerRadius * 0.82,
-            boardGeometry.legalMarkerHeight * 0.32,
-            36,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.legalDotColor}
-          emissive={moveHighlightPalette.legalPerimeterGlow}
-          emissiveIntensity={0.16}
-          metalness={0.06}
-          roughness={0.36}
-        />
-      </mesh>
-      <mesh position={[0, markerY + boardGeometry.legalMarkerHeight * 0.12, 0]}>
-        <sphereGeometry
-          args={[
-            boardGeometry.legalMarkerRadius * 0.22,
-            18,
-            18,
-          ]}
-        />
-        <meshStandardMaterial
-          color={moveHighlightPalette.legalCoreColor}
-          emissive={moveHighlightPalette.legalDotGlow}
-          emissiveIntensity={0.2}
-          metalness={0.08}
-          roughness={0.22}
-        />
-      </mesh>
-    </>
-  );
+function getLegalDestinationMarkerVariant(): LegalDestinationMarkerVariant {
+  return moveHighlightVisualContract.legalMarkerStyle;
 }
 
-function PerimeterMarkerFrame({
-  color,
-  depth,
-  emissive,
-  emissiveIntensity,
-  metalness = 0.1,
-  opacity,
-  roughness,
-  thickness,
-  y,
-}: {
-  color: string;
-  depth: number;
-  emissive: string;
-  emissiveIntensity: number;
-  metalness?: number;
-  opacity?: number;
-  roughness: number;
-  thickness: number;
-  y: number;
-}) {
-  const offset = squareSize / 2 - thickness / 2;
-  const sideLength = squareSize - thickness * 2;
-
-  return (
-    <>
-      <mesh position={[0, y, offset]}>
-        <boxGeometry args={[squareSize, depth, thickness]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-      <mesh position={[0, y, -offset]}>
-        <boxGeometry args={[squareSize, depth, thickness]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-      <mesh position={[offset, y, 0]}>
-        <boxGeometry args={[thickness, depth, sideLength]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-      <mesh position={[-offset, y, 0]}>
-        <boxGeometry args={[thickness, depth, sideLength]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          metalness={metalness}
-          opacity={opacity}
-          roughness={roughness}
-          transparent={opacity !== undefined && opacity < 1}
-        />
-      </mesh>
-    </>
-  );
-}
-
-function getLegalDestinationMarkerVariant(
-  occupied: boolean,
-): LegalDestinationMarkerVariant {
-  return occupied
-    ? moveHighlightVisualContract.legalMarkerOccupiedStyle
-    : moveHighlightVisualContract.legalMarkerStyle;
-}
-
-function getLegalDestinationMarkerTreatment(occupied: boolean) {
-  return occupied ? 'capture-ring' : moveHighlightVisualContract.legalMarkerTreatment;
+function getLegalDestinationMarkerTreatment() {
+  return moveHighlightVisualContract.legalMarkerTreatment;
 }
 
 type BoardCameraAction =

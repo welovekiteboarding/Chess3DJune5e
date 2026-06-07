@@ -10,7 +10,9 @@ describe('sceneLighting', () => {
     expect(sceneLightingContract.backgroundColor).toBe('#151d26');
     expect(sceneLightingContract.fog.color).toBe('#111922');
     expect(sceneLightingContract.backdrop.floorColor).toBe('#16202b');
-    expect(sceneLightingContract.backdrop.wallColor).toBe('#16212d');
+    expect(sceneLightingContract.backdrop.treatment).toBe('floor-only');
+    expect(sceneLightingContract.backdrop.boardOccluderPolicy).toBe('none');
+    expect('wallColor' in sceneLightingContract.backdrop).toBe(false);
 
     expect(sceneLightingContract.keyLight.role).toBe('key');
     expect(sceneLightingContract.keyLight.intensity).toBeGreaterThan(

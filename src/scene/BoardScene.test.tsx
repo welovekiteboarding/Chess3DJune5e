@@ -1215,19 +1215,19 @@ describe('BoardScene', () => {
 
     expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
       'data-highlight-palette',
-      'green-gold',
+      'green',
     );
     expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
       'data-highlight-shape',
-      'perimeter',
+      'full-square',
     );
     expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
       'data-highlight-treatment',
-      'dual-ring',
+      'overlay',
     );
     expect(screen.getByTestId('selected-square-highlight-e2')).toHaveAttribute(
       'data-highlight-contrast',
-      'light-dark-ready',
+      'single-surface',
     );
 
     expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
@@ -1240,11 +1240,11 @@ describe('BoardScene', () => {
     );
     expect(screen.getByTestId('legal-destination-marker-e4')).toHaveAttribute(
       'data-marker-treatment',
-      'flat-dot',
+      'dot',
     );
     expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
       'data-marker-variant',
-      'perimeter',
+      'dot',
     );
     expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
       'data-occupied',
@@ -1252,23 +1252,23 @@ describe('BoardScene', () => {
     );
     expect(screen.getByTestId('legal-destination-marker-e7')).toHaveAttribute(
       'data-marker-treatment',
-      'capture-ring',
+      'dot',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-legal-marker-occupied-style',
-      'perimeter',
+      'dot',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-legal-marker-treatment',
-      'flat-dot',
+      'dot',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-selected-highlight-palette',
-      'green-gold',
+      'green',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-selected-highlight-treatment',
-      'dual-ring',
+      'overlay',
     );
   });
 
@@ -1335,11 +1335,11 @@ describe('BoardScene', () => {
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-legal-marker-style',
-      'glass-dot-marker',
+      'single-overlay-dot',
     );
     expect(screen.getByTestId('board-visual-contract')).toHaveAttribute(
       'data-selected-marker-style',
-      'brass-perimeter-highlight',
+      'single-overlay-square',
     );
   });
 
@@ -1359,6 +1359,14 @@ describe('BoardScene', () => {
     expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
       'data-shadow-style',
       'soft-readable',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-backdrop-treatment',
+      'floor-only',
+    );
+    expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
+      'data-board-occluder-policy',
+      'none',
     );
     expect(screen.getByTestId('board-lighting-contract')).toHaveAttribute(
       'data-key-light',

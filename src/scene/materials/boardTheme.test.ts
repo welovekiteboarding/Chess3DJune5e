@@ -44,9 +44,9 @@ describe('boardTheme', () => {
     );
     expect(boardVisualContract.lightSquareMaterialId).toBe('maple-stable-matte-cap');
     expect(boardVisualContract.darkSquareMaterialId).toBe('walnut-stable-matte-cap');
-    expect(boardVisualContract.legalMarkerStyleId).toBe('glass-dot-marker');
+    expect(boardVisualContract.legalMarkerStyleId).toBe('single-overlay-dot');
     expect(boardVisualContract.selectedMarkerStyleId).toBe(
-      'brass-perimeter-highlight',
+      'single-overlay-square',
     );
     expect(boardVisualContract.squareSurfaceTreatment).toBe('single-cap-plane');
     expect(boardVisualContract.squareDecorationTreatment).toBe('none');
