@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
-import { type Camera, MOUSE, TOUCH, Vector3 } from 'three';
+import { type Camera, MOUSE, type Object3D, Raycaster, TOUCH, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   useEffect,
@@ -48,6 +48,9 @@ export interface BoardSceneCanvasProps extends PropsWithChildren {
   onCameraTelemetryChange?: (
     cameraTelemetry: BoardSceneCameraTelemetry,
   ) => void;
+  onSquareCameraRayStatesChange?: (
+    squareCameraRayStates: BoardSquareCameraRayStates,
+  ) => void;
   onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
@@ -74,6 +77,11 @@ interface BoardSquareScreenPosition {
   visible: boolean;
   x: number;
   y: number;
+}
+
+interface BoardSquareCameraRayState {
+  clear: boolean;
+  hit: string;
 }
 
 interface BoardSceneCameraTelemetry {
@@ -105,6 +113,9 @@ type LegalDestinationMarkerVariant = 'dot';
 
 type BoardSquareScreenPositions = Partial<
   Record<ChessSquare, BoardSquareScreenPosition>
+>;
+type BoardSquareCameraRayStates = Partial<
+  Record<ChessSquare, BoardSquareCameraRayState>
 >;
 
 const boardSquares = createBoardSquares();
@@ -187,12 +198,18 @@ const interactionHitTargetMinSizePx = 18;
 const interactionHitTargetMaxSizePx = 72;
 const interactionHitTargetViewportMarginPx = interactionHitTargetMaxSizePx / 2;
 const cameraTarget = new Vector3(0, 0, 0);
+const squareCameraRayTargetLift = 0.005;
+const squareCameraRayDistanceTolerance = 0.01;
+const squareCameraRaycaster = new Raycaster();
+const squareCameraRayOrigin = new Vector3();
+const squareCameraRayDirection = new Vector3();
 
 function DefaultBoardSceneCanvas({
   cameraView = defaultCameraView,
   children,
   className,
   onCameraTelemetryChange,
+  onSquareCameraRayStatesChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: BoardSceneCanvasProps) {
@@ -208,6 +225,7 @@ function DefaultBoardSceneCanvas({
       <BoardSceneCameraRig
         cameraView={cameraView}
         onCameraTelemetryChange={onCameraTelemetryChange}
+        onSquareCameraRayStatesChange={onSquareCameraRayStatesChange}
         onCameraViewChange={onCameraViewChange}
         onSquareScreenPositionsChange={onSquareScreenPositionsChange}
       />
@@ -240,6 +258,8 @@ export function BoardScene({
       screenUpAngle: 0,
     }),
   );
+  const [squareCameraRayStates, setSquareCameraRayStates] =
+    useState<BoardSquareCameraRayStates>({});
   const [squareScreenPositions, setSquareScreenPositions] =
     useState<BoardSquareScreenPositions>({});
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -431,6 +451,16 @@ export function BoardScene({
                 : nextCameraTelemetry,
             );
           }}
+          onSquareCameraRayStatesChange={(nextSquareCameraRayStates) => {
+            setSquareCameraRayStates((currentSquareCameraRayStates) =>
+              areSquareCameraRayStatesEqual(
+                currentSquareCameraRayStates,
+                nextSquareCameraRayStates,
+              )
+                ? currentSquareCameraRayStates
+                : nextSquareCameraRayStates,
+            );
+          }}
           onCameraViewChange={handleCameraViewChange}
           onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
             setSquareScreenPositions(nextSquareScreenPositions);
@@ -617,6 +647,12 @@ export function BoardScene({
               <button
                 aria-label={`${boardSquare.square} square`}
                 aria-pressed={isSelected}
+                data-camera-ray-clear={String(
+                  squareCameraRayStates[boardSquare.square]?.clear ?? false,
+                )}
+                data-camera-ray-hit={
+                  squareCameraRayStates[boardSquare.square]?.hit ?? 'none'
+                }
                 data-legal-destination={String(isLegalDestination)}
                 data-piece={pieceDescription}
                 data-screen-visible={String(squareScreenPosition?.visible ?? false)}
@@ -811,6 +847,7 @@ function SceneBackdrop() {
         position={[0, -0.34, 0]}
         receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
+        userData={{ boardSceneOcclusionRole: 'backdrop-floor' }}
       >
         <circleGeometry args={[11.5, 64]} />
         <meshStandardMaterial
@@ -863,6 +900,7 @@ function BoardSquareTile({ finish }: { finish: BoardSquareFinish }) {
         castShadow
         position={[0, boardSquareSurfaceY - boardGeometry.squareTopHeight / 2, 0]}
         receiveShadow
+        userData={{ boardSceneOcclusionRole: 'board-square-top' }}
       >
         <boxGeometry
           args={[
@@ -1098,6 +1136,10 @@ function SelectedSquareHighlight() {
       position={[0, markerY, 0]}
       renderOrder={10}
       rotation={[-Math.PI / 2, 0, 0]}
+      userData={{
+        boardSceneOcclusionBehavior: 'ignore',
+        boardSceneOcclusionRole: 'selected-square-highlight',
+      }}
     >
       <planeGeometry args={[squareSize * 0.98, squareSize * 0.98]} />
       <meshStandardMaterial
@@ -1125,6 +1167,10 @@ function LegalDestinationMarker() {
       position={[0, markerY, 0]}
       renderOrder={11}
       rotation={[-Math.PI / 2, 0, 0]}
+      userData={{
+        boardSceneOcclusionBehavior: 'ignore',
+        boardSceneOcclusionRole: 'legal-destination-marker',
+      }}
     >
       <circleGeometry args={[boardGeometry.legalMarkerRadius * 0.82, 32]} />
       <meshStandardMaterial
@@ -1165,6 +1211,7 @@ type BoardCameraAction =
 function BoardSceneCameraRig({
   cameraView,
   onCameraTelemetryChange,
+  onSquareCameraRayStatesChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: {
@@ -1172,15 +1219,20 @@ function BoardSceneCameraRig({
   onCameraTelemetryChange?: (
     cameraTelemetry: BoardSceneCameraTelemetry,
   ) => void;
+  onSquareCameraRayStatesChange?: (
+    squareCameraRayStates: BoardSquareCameraRayStates,
+  ) => void;
   onCameraViewChange?: (cameraView: BoardCameraView) => void;
   onSquareScreenPositionsChange?: (
     squareScreenPositions: BoardSquareScreenPositions,
   ) => void;
 }) {
   const camera = useThree((state) => state.camera);
+  const scene = useThree((state) => state.scene);
   const size = useThree((state) => state.size);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const lastCameraTelemetrySnapshotRef = useRef('');
+  const lastSquareCameraRayStatesSnapshotRef = useRef('');
   const lastSquareScreenPositionsRef = useRef('');
   const lastCameraViewSnapshotRef = useRef(getCameraViewSnapshot(cameraView));
   const lastPublishedCameraViewRef = useRef(cameraView);
@@ -1215,19 +1267,41 @@ function BoardSceneCameraRig({
       onSquareScreenPositionsChange,
       size,
     });
+    publishSquareCameraRayStates({
+      camera,
+      lastSquareCameraRayStatesSnapshotRef,
+      onSquareCameraRayStatesChange,
+      scene,
+      size,
+    });
     publishCameraTelemetry({
       camera,
       lastCameraTelemetrySnapshotRef,
       onCameraTelemetryChange,
       size,
     });
-  }, [camera, cameraView, onCameraTelemetryChange, onSquareScreenPositionsChange, size]);
+  }, [
+    camera,
+    cameraView,
+    onCameraTelemetryChange,
+    onSquareCameraRayStatesChange,
+    onSquareScreenPositionsChange,
+    scene,
+    size,
+  ]);
 
   useFrame(() => {
     publishProjectedSquarePositions({
       camera,
       lastSquareScreenPositionsRef,
       onSquareScreenPositionsChange,
+      size,
+    });
+    publishSquareCameraRayStates({
+      camera,
+      lastSquareCameraRayStatesSnapshotRef,
+      onSquareCameraRayStatesChange,
+      scene,
       size,
     });
     publishCameraTelemetry({
@@ -1821,12 +1895,34 @@ function areCameraTelemetryEqual(
   return (
     currentCameraTelemetry.maxDistance === nextCameraTelemetry.maxDistance &&
     currentCameraTelemetry.minDistance === nextCameraTelemetry.minDistance &&
-    currentCameraTelemetry.screenUpAngle === nextCameraTelemetry.screenUpAngle
+      currentCameraTelemetry.screenUpAngle === nextCameraTelemetry.screenUpAngle
+  );
+}
+
+function areSquareCameraRayStatesEqual(
+  currentSquareCameraRayStates: BoardSquareCameraRayStates,
+  nextSquareCameraRayStates: BoardSquareCameraRayStates,
+) {
+  return (
+    getSquareCameraRayStatesSnapshot(currentSquareCameraRayStates) ===
+    getSquareCameraRayStatesSnapshot(nextSquareCameraRayStates)
   );
 }
 
 function getCameraViewSnapshot(cameraView: BoardCameraView): string {
   return `${cameraView.viewMode}:${roundToTwoDecimals(cameraView.azimuth)}:${roundToTwoDecimals(cameraView.distance)}:${roundToTwoDecimals(cameraView.polar)}`;
+}
+
+function getSquareCameraRayStatesSnapshot(
+  squareCameraRayStates: BoardSquareCameraRayStates,
+) {
+  return boardSquares
+    .map((boardSquare) => {
+      const squareCameraRayState = squareCameraRayStates[boardSquare.square];
+
+      return `${boardSquare.square}:${Number(squareCameraRayState?.clear ?? false)}:${squareCameraRayState?.hit ?? 'none'}`;
+    })
+    .join('|');
 }
 
 function setHitTargetPointerEvents(
@@ -1989,6 +2085,41 @@ function publishProjectedSquarePositions({
   onSquareScreenPositionsChange(projectedSquarePositions);
 }
 
+function publishSquareCameraRayStates({
+  camera,
+  lastSquareCameraRayStatesSnapshotRef,
+  onSquareCameraRayStatesChange,
+  scene,
+  size,
+}: {
+  camera: Camera;
+  lastSquareCameraRayStatesSnapshotRef: { current: string };
+  onSquareCameraRayStatesChange?: (
+    squareCameraRayStates: BoardSquareCameraRayStates,
+  ) => void;
+  scene: Object3D;
+  size: { height: number; width: number };
+}) {
+  if (!onSquareCameraRayStatesChange) {
+    return;
+  }
+
+  const {
+    squareCameraRayStates,
+    squareCameraRayStatesSnapshot,
+  } = getSquareCameraRayStates(camera, scene, size);
+
+  if (
+    squareCameraRayStatesSnapshot ===
+    lastSquareCameraRayStatesSnapshotRef.current
+  ) {
+    return;
+  }
+
+  lastSquareCameraRayStatesSnapshotRef.current = squareCameraRayStatesSnapshot;
+  onSquareCameraRayStatesChange(squareCameraRayStates);
+}
+
 function publishCameraTelemetry({
   camera,
   lastCameraTelemetrySnapshotRef,
@@ -2077,6 +2208,112 @@ function getProjectedSquarePositions(
     projectedSquarePositions,
     projectedSquarePositionsSnapshot,
   };
+}
+
+function getSquareCameraRayStates(
+  camera: Camera,
+  scene: Object3D,
+  size: { height: number; width: number },
+) {
+  const squareCameraRayStates: BoardSquareCameraRayStates = {};
+
+  camera.updateMatrixWorld();
+  scene.updateMatrixWorld(true);
+
+  const squareCameraRayStatesSnapshot = boardSquares
+    .map((boardSquare) => {
+      const [x, z] = getSquarePosition(boardSquare);
+      const projectedSquarePosition = projectBoardPositionToScreen({
+        camera,
+        size,
+        x,
+        y: boardSquareSurfaceY,
+        z,
+      });
+      const squareCameraRayState = projectedSquarePosition.visible
+        ? getSquareCameraRayState({
+            camera,
+            scene,
+            x,
+            y: boardSquareSurfaceY + squareCameraRayTargetLift,
+            z,
+          })
+        : {
+            clear: false,
+            hit: 'out-of-view',
+          };
+
+      squareCameraRayStates[boardSquare.square] = squareCameraRayState;
+
+      return `${boardSquare.square}:${Number(squareCameraRayState.clear)}:${squareCameraRayState.hit}`;
+    })
+    .join('|');
+
+  return {
+    squareCameraRayStates,
+    squareCameraRayStatesSnapshot,
+  };
+}
+
+function getSquareCameraRayState({
+  camera,
+  scene,
+  x,
+  y,
+  z,
+}: {
+  camera: Camera;
+  scene: Object3D;
+  x: number;
+  y: number;
+  z: number;
+}): BoardSquareCameraRayState {
+  squareCameraRayOrigin.copy(camera.position);
+  squareCameraRayDirection.set(x, y, z).sub(squareCameraRayOrigin);
+  const targetDistance = squareCameraRayDirection.length();
+
+  if (targetDistance <= 0) {
+    return {
+      clear: true,
+      hit: 'none',
+    };
+  }
+
+  squareCameraRayDirection.normalize();
+  squareCameraRaycaster.set(squareCameraRayOrigin, squareCameraRayDirection);
+
+  const firstOccludingIntersection = squareCameraRaycaster
+    .intersectObjects(scene.children, true)
+    .find(
+      (intersection) =>
+        intersection.distance <
+          targetDistance - squareCameraRayDistanceTolerance &&
+        !shouldIgnoreSquareCameraRayIntersection(intersection.object),
+    );
+
+  if (!firstOccludingIntersection) {
+    return {
+      clear: true,
+      hit: 'none',
+    };
+  }
+
+  return {
+    clear: false,
+    hit: getSquareCameraRayIntersectionRole(firstOccludingIntersection.object),
+  };
+}
+
+function shouldIgnoreSquareCameraRayIntersection(object: Object3D) {
+  return object.userData.boardSceneOcclusionBehavior === 'ignore';
+}
+
+function getSquareCameraRayIntersectionRole(object: Object3D) {
+  return (
+    object.userData.boardSceneOcclusionRole ??
+    object.parent?.userData.boardSceneOcclusionRole ??
+    object.type.toLowerCase()
+  );
 }
 
 function projectBoardPositionToScreen({
