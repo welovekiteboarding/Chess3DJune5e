@@ -35,6 +35,13 @@ function getContrastRatio(firstColor: string, secondColor: string) {
 describe('boardTheme', () => {
   it('defines a framed board contract with readable square contrast', () => {
     expect(boardVisualContract.frameStyleId).toBe('walnut-bevel-frame');
+    expect(boardVisualContract.cornerDecorationTreatment).toBe(
+      'separated-corner-cap',
+    );
+    expect(boardVisualContract.cornerJoinStyle).toBe('butt-joint');
+    expect(boardVisualContract.cornerSurfaceTreatment).toBe(
+      'raised-diamond-cap',
+    );
     expect(boardVisualContract.lightSquareMaterialId).toBe('maple-stable-matte-cap');
     expect(boardVisualContract.darkSquareMaterialId).toBe('walnut-stable-matte-cap');
     expect(boardVisualContract.legalMarkerStyleId).toBe('glass-dot-marker');
@@ -47,6 +54,20 @@ describe('boardTheme', () => {
     expect(boardGeometry.frameOverhang).toBeGreaterThan(0.45);
     expect(boardGeometry.frameRailHeight).toBeGreaterThan(0.08);
     expect(boardGeometry.frameRailHeight).toBeLessThan(boardGeometry.squareHeight);
+    expect(boardGeometry.frameRailSpan).toBeLessThan(
+      boardGeometry.boardSpan + boardGeometry.frameRailThickness,
+    );
+    expect(boardGeometry.frameCornerCapHeight).toBeGreaterThan(0);
+    expect(boardGeometry.frameCornerCapLift).toBeGreaterThan(0);
+    expect(boardGeometry.frameCornerCapSize).toBeLessThan(
+      boardGeometry.frameCornerSize,
+    );
+    expect(
+      boardGeometry.frameRailSpan + boardGeometry.frameCornerSize,
+    ).toBeCloseTo(
+      boardGeometry.boardSpan + boardGeometry.frameRailThickness,
+      5,
+    );
     expect(boardGeometry.squareBaseHeight + boardGeometry.squareTopHeight).toBeCloseTo(
       boardGeometry.squareHeight,
       5,
@@ -175,5 +196,17 @@ describe('boardTheme', () => {
     const squareTopY = boardGeometry.squareSurfaceY;
 
     expect(squareBaseTopY).toBeLessThan(squareTopY);
+  });
+
+  it('keeps the decorative corner cap lifted above the frame corner base plane', () => {
+    const cornerBaseTopY =
+      -boardGeometry.frameRailHeight / 2 + boardGeometry.frameRailHeight;
+    const cornerCapBottomY =
+      cornerBaseTopY + boardGeometry.frameCornerCapLift;
+    const cornerCapTopY =
+      cornerCapBottomY + boardGeometry.frameCornerCapHeight;
+
+    expect(cornerCapBottomY).toBeGreaterThan(cornerBaseTopY);
+    expect(cornerCapTopY).toBeGreaterThan(cornerCapBottomY);
   });
 });

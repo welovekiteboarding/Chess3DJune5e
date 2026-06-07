@@ -72,6 +72,35 @@ async function getCameraMetrics(cameraState: Locator) {
   };
 }
 
+async function expectStableCornerSurfaceContract(
+  boardVisualContract: Locator,
+) {
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-corner-decoration-treatment',
+    'separated-corner-cap',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-corner-surface-treatment',
+    'raised-diamond-cap',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-corner-join-style',
+    'butt-joint',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-corner-cap-height',
+    '0.052',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-corner-cap-lift',
+    '0.012',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-corner-cap-size',
+    '0.56',
+  );
+}
+
 async function clickRenderedSquare(page: Page, square: string) {
   const squareButton = page.locator(getSquareButton(square));
   const squareHitTarget = page.getByTestId(`board-hit-target-${square}`);
@@ -220,7 +249,7 @@ test('renders the local chess app shell in a real browser', async ({ page }) => 
   await expect(page.getByTestId('app-shell-title')).toHaveText('3D Chess');
 });
 
-test('keeps the board flat while orbiting and clamps camera zoom to useful bounds', async ({
+test('keeps the board flat while orbiting and keeps the corner surface contract stable while clamping camera zoom', async ({
   page,
 }) => {
   test.setTimeout(75_000);
@@ -230,8 +259,10 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
 
   const cameraState = page.getByTestId('board-camera-state');
   const boardCanvasShell = page.getByTestId('board-scene-canvas-shell');
+  const boardVisualContract = page.getByTestId('board-visual-contract');
 
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   const defaultCameraMetrics = await getCameraMetrics(cameraState);
 
@@ -248,6 +279,7 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
 
   expect(rotatedRightMetrics.azimuth).toBeGreaterThan(Math.PI * 2);
   expect(rotatedRightMetrics.screenUpAngle).toBeCloseTo(0, 2);
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   for (let rotationStep = 0; rotationStep < 6; rotationStep += 1) {
     await clickCameraButton(page, 'Rotate left');
@@ -258,6 +290,7 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
   expect(rotatedLeftMetrics.azimuth).toBeLessThan(rotatedRightMetrics.azimuth);
   expect(rotatedLeftMetrics.screenUpAngle).toBeCloseTo(0, 2);
   expect(rotatedLeftMetrics.polar).toBeCloseTo(defaultCameraMetrics.polar, 2);
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   await boardCanvasShell.hover();
   await page.mouse.wheel(0, 180);
@@ -269,6 +302,7 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
   const zoomedOutMetrics = await getCameraMetrics(cameraState);
 
   expect(zoomedOutMetrics.screenUpAngle).toBeCloseTo(0, 2);
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   await page.mouse.wheel(0, -260);
   await expect
@@ -288,6 +322,7 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
   const maxZoomMetrics = await getCameraMetrics(cameraState);
 
   expect(maxZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   await boardCanvasShell.hover();
 
@@ -302,9 +337,11 @@ test('keeps the board flat while orbiting and clamps camera zoom to useful bound
   const minZoomMetrics = await getCameraMetrics(cameraState);
 
   expect(minZoomMetrics.screenUpAngle).toBeCloseTo(0, 2);
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expectStableCornerSurfaceContract(boardVisualContract);
 });
 
 test('boots the real browser Stockfish path and keeps move surfaces stable at default and custom camera angles', async ({
@@ -316,6 +353,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await page.goto('/');
 
   const cameraState = page.getByTestId('board-camera-state');
+  const boardVisualContract = page.getByTestId('board-visual-contract');
   const e2Square = page.locator(getSquareButton('e2'));
   const e3Square = page.locator(getSquareButton('e3'));
   const e4Square = page.locator(getSquareButton('e4'));
@@ -351,13 +389,18 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     'data-shadow-style',
     'soft-readable',
   );
-  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+  await expectStableCornerSurfaceContract(boardVisualContract);
+  await expect(boardVisualContract).toHaveAttribute(
     'data-square-surface-treatment',
     'single-cap-plane',
   );
-  await expect(page.getByTestId('board-visual-contract')).toHaveAttribute(
+  await expect(boardVisualContract).toHaveAttribute(
     'data-square-decoration-treatment',
     'none',
+  );
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-frame-rail-span',
+    '7.86',
   );
   await expectResolvedPieceIdentities(page, [
     { color: 'white', square: 'a1' },
@@ -430,6 +473,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickCameraButton(page, 'Overhead view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'overhead');
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   const overheadE2Position = await getProjectedSquarePosition(e2Square);
   const overheadE4Position = await getProjectedSquarePosition(e4Square);
@@ -445,6 +489,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect
     .poll(async () => getCameraDistance(cameraState))
     .toBeGreaterThan(defaultDistance);
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   const zoomedOutDistance = await getCameraDistance(cameraState);
 
@@ -452,6 +497,9 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect
     .poll(async () => getCameraDistance(cameraState))
     .toBeLessThan(zoomedOutDistance);
+  await clickCameraButton(page, 'Tilt down');
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await expectStableCornerSurfaceContract(boardVisualContract);
 
   const zoomedE2Position = await getProjectedSquarePosition(e2Square);
   const zoomedE4Position = await getProjectedSquarePosition(e4Square);
@@ -462,6 +510,11 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
 
   await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
+  await expect(boardVisualContract).toHaveAttribute(
+    'data-frame-rail-span',
+    '7.86',
+  );
+  await expectStableCornerSurfaceContract(boardVisualContract);
   await expect
     .poll(async () => getProjectedSquarePosition(e2Square))
     .toEqual(defaultE2Position);
