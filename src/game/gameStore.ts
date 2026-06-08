@@ -101,7 +101,6 @@ export function createGameStore(options: CreateGameStoreOptions) {
   const aiSide = humanSide === 'white' ? 'black' : 'white';
   const initialDifficulty = options.aiDifficulty ?? 'medium';
   const initialGameState = resolveInitialGameState(options.initialFen);
-  const initialFen = getFen(initialGameState);
   let engineRequestVersion = 0;
   let pendingAiRequestFen: string | null = null;
   let pendingAiRequestPromise: Promise<GameMoveAttemptResult> | null = null;
