@@ -875,8 +875,10 @@ describe('App', () => {
       expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent(status);
       expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent(status);
       expect(
-        screen.getByRole('button', { name: 'Start a new game' }),
+        screen.getByRole('button', { name: 'New game' }),
       ).toBeVisible();
+      expect(screen.getByText('Game complete')).toBeInTheDocument();
+      expect(screen.queryByText('Engine ready')).not.toBeInTheDocument();
       expect(engine.requestBestMove).not.toHaveBeenCalled();
     },
   );

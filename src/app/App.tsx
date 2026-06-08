@@ -75,6 +75,11 @@ export function App({
   const overviewStateLabel = isGameOver ? 'State' : 'Turn';
   const overviewStateValue = isGameOver ? 'Game over' : sideToMoveLabel;
   const boardChromeStatus = isGameOver ? gameStatusLabel : sideToMoveLabel;
+  const boardRegionBadge = isGameOver
+    ? 'Game complete'
+    : isEngineThinking
+      ? 'Engine active'
+      : 'Engine ready';
 
   useEffect(() => {
     if (!autoRequestAiMoves) {
@@ -200,9 +205,7 @@ export function App({
                 <p className="board-region__eyebrow">Command surface</p>
                 <p className="board-region__title">Human vs Stockfish</p>
               </div>
-              <p className="board-region__badge">
-                {isEngineThinking ? 'Engine active' : 'Engine ready'}
-              </p>
+              <p className="board-region__badge">{boardRegionBadge}</p>
             </div>
             <BoardScene
               CanvasBoundary={boardSceneCanvasBoundary}

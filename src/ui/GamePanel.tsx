@@ -95,10 +95,10 @@ export function GamePanel({
             <span className="game-panel__section-chip">Complete</span>
           </div>
           <p className="game-panel__game-over-copy">
-            {status}. Start a new game to play again.
+            {status}. Select New game to play again.
           </p>
           <button onClick={onNewGame} type="button">
-            Start a new game
+            New game
           </button>
         </section>
       ) : null}

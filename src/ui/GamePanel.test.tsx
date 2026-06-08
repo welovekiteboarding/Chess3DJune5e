@@ -370,7 +370,7 @@ describe('GamePanel', () => {
       );
       expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent(status);
       fireEvent.click(
-        screen.getByRole('button', { name: 'Start a new game' }),
+        screen.getByRole('button', { name: 'New game' }),
       );
 
       expect(handleNewGame).toHaveBeenCalledTimes(1);
