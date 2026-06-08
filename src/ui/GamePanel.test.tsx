@@ -39,6 +39,7 @@ describe('GamePanel', () => {
       screen.getByText('Latest error: Engine lost connection.'),
     ).toBeInTheDocument();
     expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent('Check');
+    expect(screen.getAllByText('Check')).toHaveLength(1);
     expect(screen.getByTestId('move-history-scroll')).toBeInTheDocument();
     expect(screen.getAllByTestId('move-history-item')).toHaveLength(2);
     expect(screen.getAllByTestId('move-history-item')[0]).toHaveAttribute(
@@ -56,6 +57,8 @@ describe('GamePanel', () => {
     expect(screen.queryByText('Turn')).not.toBeInTheDocument();
     expect(screen.queryByText('Human')).not.toBeInTheDocument();
     expect(screen.queryByText('AI seat')).not.toBeInTheDocument();
+    expect(screen.queryByText('Engine idle')).not.toBeInTheDocument();
+    expect(screen.queryByText('Engine thinking')).not.toBeInTheDocument();
   });
 
   it('hides the compact chess alert during normal ongoing play', () => {
@@ -238,7 +241,7 @@ describe('GamePanel', () => {
     expect(handleDifficultyChange).toHaveBeenCalledWith('hard');
   });
 
-  it('displays the engine thinking state when active', () => {
+  it('keeps engine state out of the right-side controls during active play', () => {
     render(
       <GamePanel
         aiSide="White"
@@ -254,25 +257,8 @@ describe('GamePanel', () => {
       />,
     );
 
-    expect(screen.getByText('Engine thinking')).toBeInTheDocument();
-  });
-
-  it('shows an idle engine status when the engine is not thinking', () => {
-    render(
-      <GamePanel
-        aiSide="Black"
-        difficultyOptions={difficultyOptions}
-        humanSide="White"
-        moveHistory={[]}
-        onDifficultyChange={() => {}}
-        onNewGame={() => {}}
-        selectedDifficulty="medium"
-        sideToMove="White to move"
-        status="Ongoing"
-      />,
-    );
-
-    expect(screen.getByText('Engine idle')).toBeInTheDocument();
+    expect(screen.queryByText('Engine thinking')).not.toBeInTheDocument();
+    expect(screen.queryByText('Engine idle')).not.toBeInTheDocument();
   });
 
   it.each(['Check', 'Checkmate', 'Stalemate', 'Draw'])(

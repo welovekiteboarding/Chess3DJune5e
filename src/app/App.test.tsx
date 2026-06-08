@@ -75,6 +75,8 @@ describe('App', () => {
       screen.queryByRole('heading', { level: 3, name: 'Stockfish' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('Status: Ongoing')).not.toBeInTheDocument();
+    expect(screen.queryByText('Engine idle')).not.toBeInTheDocument();
+    expect(screen.queryByText('Engine thinking')).not.toBeInTheDocument();
     expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
     expect(
       screen.getByRole('toolbar', { name: 'Board camera controls' }),
@@ -557,7 +559,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
 
     await waitFor(() =>
-      expect(screen.getByText('Engine thinking')).toBeInTheDocument(),
+      expect(
+        within(screen.getByLabelText('Live game overview')).getByText('Thinking'),
+      ).toBeInTheDocument(),
     );
 
     deferredResponse.resolve({
@@ -579,7 +583,9 @@ describe('App', () => {
       ]),
     );
 
-    expect(screen.getByText('Engine idle')).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Live game overview')).getByText('Idle'),
+    ).toBeInTheDocument();
   });
 
   it('shows a cancel control during auto-play, then exposes a retry path after cancellation', async () => {
@@ -661,7 +667,9 @@ describe('App', () => {
       ]),
     );
 
-    expect(screen.getByText('Engine idle')).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Live game overview')).getByText('Idle'),
+    ).toBeInTheDocument();
   });
 
   it('keeps the difficulty control wired to the store and engine adapter', async () => {

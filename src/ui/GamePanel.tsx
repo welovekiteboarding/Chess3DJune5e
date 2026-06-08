@@ -46,16 +46,14 @@ export function GamePanel({
       {shouldShowChessAlert ? (
         <section
           aria-label="Chess alert"
+          aria-atomic="true"
+          aria-live="polite"
           className="game-panel__section game-panel__section--alert"
           data-testid="game-panel-chess-alert"
+          role="status"
         >
-          <div className="game-panel__section-heading">
-            <h3>Chess alert</h3>
-            <span className="game-panel__section-chip game-panel__section-chip--accent">
-              {status}
-            </span>
-          </div>
-          <p className="game-panel__alert-copy">{status}</p>
+          <span className="game-panel__alert-label">Chess alert</span>
+          <strong className="game-panel__alert-status">{status}</strong>
         </section>
       ) : null}
 
@@ -143,9 +141,6 @@ export function GamePanel({
             ) : null}
           </div>
         </div>
-        <p aria-live="polite" className="game-panel__engine-line">
-          {isEngineThinking ? 'Engine thinking' : 'Engine idle'}
-        </p>
         {latestError ? (
           <p
             aria-atomic="true"

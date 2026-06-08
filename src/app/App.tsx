@@ -147,7 +147,7 @@ export function App({
             <h1 data-testid="app-shell-title">3D Chess</h1>
             <p className="hero-copy">
               A contained desktop command surface with the board as the hero and
-              match telemetry docked to the right.
+              move history and controls docked to the right.
             </p>
           </div>
 

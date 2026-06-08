@@ -400,6 +400,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   const cameraState = page.getByTestId('board-camera-state');
   const boardVisualContract = page.getByTestId('board-visual-contract');
   const boardLightingContract = page.getByTestId('board-lighting-contract');
+  const liveGameOverview = page.getByLabel('Live game overview');
   const e2Square = page.locator(getSquareButton('e2'));
   const e3Square = page.locator(getSquareButton('e3'));
   const e4Square = page.locator(getSquareButton('e4'));
@@ -425,6 +426,8 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect(page.locator('[data-testid^="board-square-"]')).toHaveCount(64);
   await expect(page.getByText('No moves yet.')).toBeVisible();
   await expect(page.getByTestId('game-panel-chess-alert')).toHaveCount(0);
+  await expect(page.getByText('Engine idle')).toHaveCount(0);
+  await expect(page.getByText('Engine thinking')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
   await expect(page.getByLabel('AI difficulty')).toBeVisible();
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');
@@ -616,7 +619,9 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     timeout: 25000,
   });
   await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+  await expect(liveGameOverview.getByText('Idle')).toBeVisible({
+    timeout: 25000,
+  });
   await waitForPieceAnimationsToComplete(page);
 
   const aiMoveText = await page
@@ -672,7 +677,9 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
     timeout: 25000,
   });
   await expectMoveHistoryEntry(page, 3, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
-  await expect(page.getByText('Engine idle')).toBeVisible({ timeout: 25000 });
+  await expect(liveGameOverview.getByText('Idle')).toBeVisible({
+    timeout: 25000,
+  });
 
   const secondAiMoveText = await page
     .locator('[data-testid="move-history-item"][data-move-index="3"]')
