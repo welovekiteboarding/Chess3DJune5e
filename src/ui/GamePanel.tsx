@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from 'react';
 
+import type { ChessGameStatus } from '../chess/chessTypes';
 import type { AiDifficulty } from '../engine/engineTypes';
 
 export interface GamePanelDifficultyOption {
@@ -10,6 +11,7 @@ export interface GamePanelDifficultyOption {
 export interface GamePanelProps {
   aiSide: string;
   difficultyOptions: readonly GamePanelDifficultyOption[];
+  gameStatusKind?: ChessGameStatus['kind'];
   humanSide: string;
   isEngineThinking?: boolean;
   latestError?: string | null;
@@ -26,6 +28,7 @@ export interface GamePanelProps {
 
 export function GamePanel({
   difficultyOptions,
+  gameStatusKind,
   isEngineThinking = false,
   latestError = null,
   moveHistory = [],
@@ -37,11 +40,15 @@ export function GamePanel({
   selectedDifficulty,
   status,
 }: GamePanelProps) {
-  const shouldShowChessAlert = isImportantChessStatus(status);
+  const resolvedGameStatusKind = gameStatusKind ?? toGameStatusKind(status);
+  const shouldShowChessAlert = isImportantChessStatus(resolvedGameStatusKind);
+  const isGameOver = isGameOverStatus(resolvedGameStatusKind);
   const [isConfirmingNewGameRequested, setIsConfirmingNewGameRequested] =
     useState(false);
   const isConfirmingNewGame =
-    requiresNewGameConfirmation && isConfirmingNewGameRequested;
+    !isGameOver &&
+    requiresNewGameConfirmation &&
+    isConfirmingNewGameRequested;
 
   function handleDifficultyChange(event: ChangeEvent<HTMLSelectElement>) {
     onDifficultyChange(event.target.value as AiDifficulty);
@@ -74,6 +81,25 @@ export function GamePanel({
         >
           <span className="game-panel__alert-label">Chess alert</span>
           <strong className="game-panel__alert-status">{status}</strong>
+        </section>
+      ) : null}
+
+      {isGameOver ? (
+        <section
+          aria-label="Game over"
+          className="game-panel__section game-panel__section--game-over"
+          data-testid="game-panel-game-over"
+        >
+          <div className="game-panel__section-heading">
+            <h3>Game over</h3>
+            <span className="game-panel__section-chip">Complete</span>
+          </div>
+          <p className="game-panel__game-over-copy">
+            {status}. Select New game to play again.
+          </p>
+          <button onClick={onNewGame} type="button">
+            New game
+          </button>
         </section>
       ) : null}
 
@@ -143,40 +169,42 @@ export function GamePanel({
             </select>
           </label>
 
-          <div className="game-panel__button-row">
-            {isConfirmingNewGame ? (
-              <>
-                <p className="game-panel__reset-warning">
-                  Start over? Current progress will be lost.
-                </p>
-                <button onClick={handleConfirmNewGame} type="button">
-                  Confirm new game
+          {!isGameOver ? (
+            <div className="game-panel__button-row">
+              {isConfirmingNewGame ? (
+                <>
+                  <p className="game-panel__reset-warning">
+                    Start over? Current progress will be lost.
+                  </p>
+                  <button onClick={handleConfirmNewGame} type="button">
+                    Confirm new game
+                  </button>
+                  <button
+                    onClick={() => setIsConfirmingNewGameRequested(false)}
+                    type="button"
+                  >
+                    Keep playing
+                  </button>
+                </>
+              ) : (
+                <button onClick={handleNewGameClick} type="button">
+                  New game
                 </button>
-                <button
-                  onClick={() => setIsConfirmingNewGameRequested(false)}
-                  type="button"
-                >
-                  Keep playing
+              )}
+
+              {isEngineThinking && onCancelAiMove ? (
+                <button onClick={onCancelAiMove} type="button">
+                  Cancel AI move
                 </button>
-              </>
-            ) : (
-              <button onClick={handleNewGameClick} type="button">
-                New game
-              </button>
-            )}
+              ) : null}
 
-            {isEngineThinking && onCancelAiMove ? (
-              <button onClick={onCancelAiMove} type="button">
-                Cancel AI move
-              </button>
-            ) : null}
-
-            {!isEngineThinking && onRetryAiMove ? (
-              <button onClick={onRetryAiMove} type="button">
-                Retry AI move
-              </button>
-            ) : null}
-          </div>
+              {!isEngineThinking && onRetryAiMove ? (
+                <button onClick={onRetryAiMove} type="button">
+                  Retry AI move
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {latestError ? (
           <p
@@ -194,11 +222,32 @@ export function GamePanel({
   );
 }
 
-function isImportantChessStatus(status: string) {
+function isImportantChessStatus(status: ChessGameStatus['kind']) {
   return (
-    status === 'Check' ||
-    status === 'Checkmate' ||
-    status === 'Stalemate' ||
-    status === 'Draw'
+    status === 'check' ||
+    status === 'checkmate' ||
+    status === 'stalemate' ||
+    status === 'draw'
   );
+}
+
+function isGameOverStatus(status: ChessGameStatus['kind']) {
+  return (
+    status === 'checkmate' || status === 'stalemate' || status === 'draw'
+  );
+}
+
+function toGameStatusKind(status: string): ChessGameStatus['kind'] {
+  switch (status) {
+    case 'Check':
+      return 'check';
+    case 'Checkmate':
+      return 'checkmate';
+    case 'Stalemate':
+      return 'stalemate';
+    case 'Draw':
+      return 'draw';
+    default:
+      return 'ongoing';
+  }
 }

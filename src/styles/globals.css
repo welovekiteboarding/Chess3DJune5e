@@ -436,7 +436,7 @@ button {
 
 .game-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 12px;
   height: 100%;
   min-height: 0;
@@ -470,6 +470,20 @@ button {
   background:
     linear-gradient(180deg, rgba(143, 208, 166, 0.08), transparent 100%),
     rgba(8, 17, 27, 0.92);
+}
+
+.game-panel__section--game-over {
+  grid-row: 2;
+  border-color: rgba(212, 177, 106, 0.28);
+  background:
+    linear-gradient(180deg, rgba(212, 177, 106, 0.12), transparent 100%),
+    rgba(10, 18, 29, 0.94);
+}
+
+.game-panel__game-over-copy {
+  margin: 0;
+  color: #f4efdf;
+  line-height: 1.45;
 }
 
 .game-panel__section-heading {
@@ -530,7 +544,7 @@ button {
 }
 
 .game-panel__history {
-  grid-row: 2;
+  grid-row: 3;
   grid-template-rows: auto minmax(0, 1fr);
 }
 
@@ -559,7 +573,7 @@ button {
 }
 
 .game-panel__controls {
-  grid-row: 3;
+  grid-row: 4;
   align-content: start;
 }
 

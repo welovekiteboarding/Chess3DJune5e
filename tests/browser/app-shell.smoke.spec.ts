@@ -426,6 +426,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await expect(page.locator('[data-testid^="board-square-"]')).toHaveCount(64);
   await expect(page.getByText('No moves yet.')).toBeVisible();
   await expect(page.getByTestId('game-panel-chess-alert')).toHaveCount(0);
+  await expect(page.getByTestId('game-panel-game-over')).toHaveCount(0);
   await expect(page.getByText('Engine idle')).toHaveCount(0);
   await expect(page.getByText('Engine thinking')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();

@@ -13,7 +13,10 @@ function TestCanvasBoundary({ children }: BoardSceneCanvasProps) {
 
 describe('App', () => {
   const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+  const checkFen = '4Q1k1/8/8/8/8/8/8/K7 b - - 0 1';
   const checkmateFen = '7k/6Q1/6K1/8/8/8/8/8 b - - 0 1';
+  const stalemateFen = '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1';
+  const drawFen = '8/8/8/8/8/8/2k5/3K4 w - - 0 1';
 
   it('composes the local chess shell from the game store state', () => {
     const store = createGameStore({
@@ -800,11 +803,111 @@ describe('App', () => {
     const liveOverview = screen.getByLabelText('Live game overview');
 
     expect(within(liveOverview).getByText('Checkmate')).toBeInTheDocument();
-    expect(within(liveOverview).getByText('Black to move')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Game over')).toBeInTheDocument();
     expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent(
       'Checkmate',
     );
+    expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent(
+      'Checkmate',
+    );
     expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it('renders check status from store-backed chess state while keeping the move prompt visible', () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      initialFen: checkFen,
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    const liveOverview = screen.getByLabelText('Live game overview');
+
+    expect(within(liveOverview).getByText('Check')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Black to move')).toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent('Check');
+    expect(screen.queryByTestId('game-panel-game-over')).not.toBeInTheDocument();
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      fen: checkmateFen,
+      status: 'Checkmate',
+    },
+    {
+      fen: stalemateFen,
+      status: 'Stalemate',
+    },
+    {
+      fen: drawFen,
+      status: 'Draw',
+    },
+  ])(
+    'renders a store-backed game-over panel for $status without a normal move prompt',
+    ({ fen, status }) => {
+      const engine = createFakeEngine();
+      const store = createGameStore({
+        engine,
+        initialFen: fen,
+      });
+
+      render(
+        <App
+          autoRequestAiMoves
+          boardSceneCanvasBoundary={TestCanvasBoundary}
+          store={store}
+        />,
+      );
+
+      const liveOverview = screen.getByLabelText('Live game overview');
+
+      expect(within(liveOverview).getByText(status)).toBeInTheDocument();
+      expect(within(liveOverview).getByText('Game over')).toBeInTheDocument();
+      expect(within(liveOverview).queryByText(/to move$/)).not.toBeInTheDocument();
+      expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent(status);
+      expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent(status);
+      expect(
+        screen.getByRole('button', { name: 'New game' }),
+      ).toBeVisible();
+      expect(screen.getByText('Game complete')).toBeInTheDocument();
+      expect(screen.queryByText('Engine ready')).not.toBeInTheDocument();
+      expect(engine.requestBestMove).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not allow drawn game positions to surface move-selection prompts on the board', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: drawFen,
+    });
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'd1 square' }));
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(
+      screen.queryByTestId('selected-square-highlight-d1'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('legal-destination-square-e1'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent('Draw');
   });
 
   it('completes a pending promotion when the user chooses queen', () => {

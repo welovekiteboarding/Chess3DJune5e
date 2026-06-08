@@ -6,6 +6,9 @@ import { createGameStore } from './gameStore';
 
 describe('gameStore', () => {
   const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+  const checkFen = '4Q1k1/8/8/8/8/8/8/K7 b - - 0 1';
+  const stalemateFen = '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1';
+  const drawFen = '8/8/8/8/8/8/2k5/3K4 w - - 0 1';
 
   it('initializes a local human-vs-AI game from the starting position', () => {
     const engine = createFakeEngine();
@@ -759,6 +762,78 @@ describe('gameStore', () => {
       kind: 'checkmate',
     });
     expect(store.getState().gameStatusLabel).toBe('Checkmate');
+    expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      fen: checkFen,
+      expectedStatus: {
+        kind: 'check',
+      },
+      expectedLabel: 'Check',
+    },
+    {
+      fen: stalemateFen,
+      expectedStatus: {
+        kind: 'stalemate',
+      },
+      expectedLabel: 'Stalemate',
+    },
+    {
+      fen: drawFen,
+      expectedStatus: {
+        kind: 'draw',
+        reason: 'insufficient-material',
+      },
+      expectedLabel: 'Draw',
+    },
+  ])(
+    'exposes $expectedLabel status details from an initial FEN without requesting an engine move',
+    ({ fen, expectedStatus, expectedLabel }) => {
+      const engine = createFakeEngine();
+      const store = createGameStore({
+        engine,
+        initialFen: fen,
+      });
+
+      expect(store.getState().gameStatus).toEqual(expectedStatus);
+      expect(store.getState().gameStatusLabel).toBe(expectedLabel);
+      expect(engine.requestBestMove).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not allow human square selection after a drawn game is already over', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: drawFen,
+    });
+
+    store.getState().selectSquare('d1');
+
+    expect(store.getState().gameStatus).toEqual({
+      kind: 'draw',
+      reason: 'insufficient-material',
+    });
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+  });
+
+  it('rejects AI move requests when an initial drawn position is already game over', async () => {
+    const engine = createFakeEngine();
+    const store = createGameStore({
+      engine,
+      humanSide: 'black',
+      initialFen: drawFen,
+    });
+
+    await expect(store.getState().requestAiMove()).resolves.toEqual({
+      ok: false,
+      error: 'The game is over.',
+    });
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().latestError).toBe('The game is over.');
+    expect(store.getState().latestErrorKind).toBe('input');
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
