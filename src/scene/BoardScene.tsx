@@ -122,6 +122,9 @@ type BoardSquareCameraRayStates = Partial<
 >;
 
 const boardSquares = createBoardSquares();
+const boardSquaresBySquare = new Map(
+  boardSquares.map((boardSquare) => [boardSquare.square, boardSquare] as const),
+);
 const emptyPiecePlacements: readonly ChessPiecePlacement[] = [];
 const emptySquareCameraRayStates: BoardSquareCameraRayStates = {};
 const squareSize = boardGeometry.squareSize;
@@ -1420,7 +1423,7 @@ function getSquarePosition(boardSquare: BoardSquareDefinition): [number, number]
 }
 
 function getBoardSquare(square: ChessSquare): BoardSquareDefinition {
-  const boardSquare = boardSquares.find((entry) => entry.square === square);
+  const boardSquare = boardSquaresBySquare.get(square);
 
   if (!boardSquare) {
     throw new Error(`Unknown board square: ${square}`);

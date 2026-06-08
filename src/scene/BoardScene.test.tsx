@@ -388,6 +388,65 @@ describe('BoardScene', () => {
     ).toHaveAttribute('data-ray-probe-squares', 'd4,e4,d5,e5');
   });
 
+  it('enables representative camera ray diagnostics from the browser URL when tests opt in explicitly', () => {
+    const previousUrl = window.location.href;
+
+    window.history.replaceState(
+      {},
+      '',
+      '/?camera-ray-diagnostics=representative',
+    );
+
+    try {
+      render(
+        <BoardScene
+          CanvasBoundary={DiagnosticsAwareTestCanvasBoundary}
+          legalDestinationSquares={[]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(
+        screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+      ).toHaveAttribute('data-has-camera-ray-diagnostics', 'true');
+      expect(
+        screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+      ).toHaveAttribute('data-ray-probe-squares', 'd4,e4,d5,e5');
+    } finally {
+      window.history.replaceState({}, '', previousUrl);
+    }
+  });
+
+  it('lets an explicit disabled diagnostics prop override the browser URL opt-in', () => {
+    const previousUrl = window.location.href;
+
+    window.history.replaceState(
+      {},
+      '',
+      '/?camera-ray-diagnostics=representative',
+    );
+
+    try {
+      render(
+        <BoardScene
+          CanvasBoundary={DiagnosticsAwareTestCanvasBoundary}
+          cameraRayDiagnosticsMode="disabled"
+          legalDestinationSquares={[]}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(
+        screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+      ).toHaveAttribute('data-has-camera-ray-diagnostics', 'false');
+      expect(
+        screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+      ).toHaveAttribute('data-ray-probe-squares', '');
+    } finally {
+      window.history.replaceState({}, '', previousUrl);
+    }
+  });
+
   it('clears rendered camera ray attributes when diagnostics are disabled after being enabled', () => {
     const { rerender } = render(
       <BoardScene
