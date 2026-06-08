@@ -24,9 +24,7 @@ export interface GamePanelProps {
 }
 
 export function GamePanel({
-  aiSide,
   difficultyOptions,
-  humanSide,
   isEngineThinking = false,
   latestError = null,
   moveHistory = [],
@@ -35,115 +33,29 @@ export function GamePanel({
   onNewGame,
   onRetryAiMove,
   selectedDifficulty,
-  sideToMove,
   status,
 }: GamePanelProps) {
+  const shouldShowChessAlert = isImportantChessStatus(status);
+
   function handleDifficultyChange(event: ChangeEvent<HTMLSelectElement>) {
     onDifficultyChange(event.target.value as AiDifficulty);
   }
 
   return (
-    <section
-      aria-labelledby="game-panel-title"
-      className="game-panel"
-      data-testid="game-panel"
-    >
-      <header className="game-panel__header">
-        <div>
-          <p className="game-panel__eyebrow">Operational console</p>
-          <h2 id="game-panel-title">Command deck</h2>
-        </div>
-        <p className="game-panel__summary">
-          Local-only telemetry, move tracking, and engine controls aligned to
-          the active board.
-        </p>
-      </header>
-
-      <div
-        className="game-panel__telemetry-grid"
-        data-testid="game-panel-telemetry-grid"
-      >
-        <article
-          className="game-panel__telemetry-item"
-          data-testid="game-panel-telemetry-item"
-        >
-          <span className="game-panel__telemetry-label">Turn</span>
-          <strong className="game-panel__telemetry-value">{sideToMove}</strong>
-        </article>
-        <article
-          className="game-panel__telemetry-item"
-          data-testid="game-panel-telemetry-item"
-        >
-          <span className="game-panel__telemetry-label">Human</span>
-          <strong className="game-panel__telemetry-value">{humanSide}</strong>
-        </article>
-        <article
-          className="game-panel__telemetry-item"
-          data-testid="game-panel-telemetry-item"
-        >
-          <span className="game-panel__telemetry-label">AI seat</span>
-          <strong className="game-panel__telemetry-value">{aiSide}</strong>
-        </article>
-        <article
-          className="game-panel__telemetry-item"
-          data-testid="game-panel-telemetry-item"
-        >
-          <span className="game-panel__telemetry-label">Engine</span>
-          <strong className="game-panel__telemetry-value">
-            {isEngineThinking ? 'Thinking' : 'Idle'}
-          </strong>
-        </article>
-      </div>
-
-      <div className="game-panel__top-stack" data-testid="game-panel-details">
+    <section aria-label="Game panel" className="game-panel" data-testid="game-panel">
+      {shouldShowChessAlert ? (
         <section
-          aria-label="Current game details"
-          className="game-panel__section game-panel__section--status"
-          data-testid="game-panel-status"
+          aria-label="Chess alert"
+          aria-atomic="true"
+          aria-live="polite"
+          className="game-panel__section game-panel__section--alert"
+          data-testid="game-panel-chess-alert"
+          role="status"
         >
-          <div className="game-panel__section-heading">
-            <h3>Match status</h3>
-            <span className="game-panel__section-chip">{status}</span>
-          </div>
-          <div className="game-panel__details">
-            <p className="game-panel__detail-line">Status: {status}</p>
-            <p className="game-panel__detail-line">Side to move: {sideToMove}</p>
-            <p className="game-panel__detail-line">Human side: {humanSide}</p>
-          </div>
+          <span className="game-panel__alert-label">Chess alert</span>
+          <strong className="game-panel__alert-status">{status}</strong>
         </section>
-
-        <section
-          aria-label="Stockfish state"
-          className="game-panel__section game-panel__section--engine"
-          data-testid="game-panel-engine"
-        >
-          <div className="game-panel__section-heading">
-            <h3>Stockfish</h3>
-            <span className="game-panel__section-chip game-panel__section-chip--accent">
-              {isEngineThinking ? 'Thinking' : 'Idle'}
-            </span>
-          </div>
-          <div aria-label="Current game details" className="game-panel__details">
-            <p className="game-panel__detail-line">AI side: {aiSide}</p>
-            <p aria-live="polite" className="game-panel__detail-line">
-              {isEngineThinking ? 'Engine thinking' : 'Engine idle'}
-            </p>
-            {latestError ? (
-              <p
-                aria-atomic="true"
-                aria-label="Engine error"
-                aria-live="assertive"
-                className="game-panel__detail-line game-panel__detail-line--error"
-                role="alert"
-              >
-                Latest error: {latestError}
-              </p>
-            ) : (
-              <p className="game-panel__detail-line">Latest error: None</p>
-            )}
-          </div>
-        </section>
-      </div>
+      ) : null}
 
       <section
         aria-label="Move history"
@@ -229,7 +141,27 @@ export function GamePanel({
             ) : null}
           </div>
         </div>
+        {latestError ? (
+          <p
+            aria-atomic="true"
+            aria-label="Engine error"
+            aria-live="assertive"
+            className="game-panel__engine-error"
+            role="alert"
+          >
+            Latest error: {latestError}
+          </p>
+        ) : null}
       </section>
     </section>
+  );
+}
+
+function isImportantChessStatus(status: string) {
+  return (
+    status === 'Check' ||
+    status === 'Checkmate' ||
+    status === 'Stalemate' ||
+    status === 'Draw'
   );
 }
