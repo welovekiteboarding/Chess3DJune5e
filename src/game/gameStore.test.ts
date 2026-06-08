@@ -813,6 +813,25 @@ describe('gameStore', () => {
     expect(store.getState().latestError).toBeNull();
     expect(store.getState().latestErrorKind).toBeNull();
   });
+
+  it('resets to the standard starting position even when the current session began from a custom FEN', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    expect(store.getState().currentFen).toBe(promotionReadyFen);
+
+    store.getState().startNewGame();
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+  });
 });
 
 function createFakeEngine(): AsyncEngineAdapter & {

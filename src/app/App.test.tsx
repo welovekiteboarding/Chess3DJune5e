@@ -865,6 +865,45 @@ describe('App', () => {
       screen.queryByRole('dialog', { name: 'Choose promotion piece' }),
     ).not.toBeInTheDocument();
   });
+
+  it('resets a custom-position session back to the standard starting board through the New game flow', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    expect(
+      screen.getByRole('dialog', { name: 'Choose promotion piece' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New game' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm new game' }));
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(
+      screen.queryByRole('dialog', { name: 'Choose promotion piece' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+      'data-square',
+      'e2',
+    );
+    expect(screen.queryByTestId('board-piece-white-queen-e8')).not.toBeInTheDocument();
+  });
 });
 
 function createFakeEngine(): AsyncEngineAdapter & {

@@ -252,7 +252,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
     startNewGame: () => {
       cancelPendingEngineRequest(set);
-      const nextGameState = resolveInitialGameState(initialFen);
+      const nextGameState = createInitialGameState();
 
       set((state) => ({
         ...buildStateSnapshot({
