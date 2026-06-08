@@ -124,6 +124,70 @@ describe('GamePanel', () => {
     expect(handleNewGame).toHaveBeenCalledTimes(1);
   });
 
+  it('requires explicit confirmation before resetting an in-progress game', () => {
+    const handleNewGame = vi.fn();
+
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        moveHistory={['1. human e2e4']}
+        onDifficultyChange={() => {}}
+        onNewGame={handleNewGame}
+        requiresNewGameConfirmation
+        selectedDifficulty="medium"
+        sideToMove="Black to move"
+        status="Ongoing"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'New game' }));
+
+    expect(handleNewGame).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('Start over? Current progress will be lost.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Confirm new game' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep playing' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm new game' }));
+
+    expect(handleNewGame).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the player dismiss the new game confirmation without resetting', () => {
+    const handleNewGame = vi.fn();
+
+    render(
+      <GamePanel
+        aiSide="Black"
+        difficultyOptions={difficultyOptions}
+        humanSide="White"
+        moveHistory={['1. human e2e4']}
+        onDifficultyChange={() => {}}
+        onNewGame={handleNewGame}
+        requiresNewGameConfirmation
+        selectedDifficulty="medium"
+        sideToMove="Black to move"
+        status="Ongoing"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'New game' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep playing' }));
+
+    expect(handleNewGame).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'Confirm new game' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Start over? Current progress will be lost.'),
+    ).not.toBeInTheDocument();
+  });
+
   it('shows a cancel control while the engine is thinking and invokes its callback', () => {
     const handleCancelAiMove = vi.fn();
 

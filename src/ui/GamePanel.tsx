@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 
 import type { AiDifficulty } from '../engine/engineTypes';
 
@@ -18,6 +18,7 @@ export interface GamePanelProps {
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onNewGame: () => void;
   onRetryAiMove?: () => void;
+  requiresNewGameConfirmation?: boolean;
   selectedDifficulty: AiDifficulty;
   sideToMove: string;
   status: string;
@@ -32,13 +33,32 @@ export function GamePanel({
   onDifficultyChange,
   onNewGame,
   onRetryAiMove,
+  requiresNewGameConfirmation = false,
   selectedDifficulty,
   status,
 }: GamePanelProps) {
   const shouldShowChessAlert = isImportantChessStatus(status);
+  const [isConfirmingNewGameRequested, setIsConfirmingNewGameRequested] =
+    useState(false);
+  const isConfirmingNewGame =
+    requiresNewGameConfirmation && isConfirmingNewGameRequested;
 
   function handleDifficultyChange(event: ChangeEvent<HTMLSelectElement>) {
     onDifficultyChange(event.target.value as AiDifficulty);
+  }
+
+  function handleNewGameClick() {
+    if (!requiresNewGameConfirmation) {
+      onNewGame();
+      return;
+    }
+
+    setIsConfirmingNewGameRequested(true);
+  }
+
+  function handleConfirmNewGame() {
+    setIsConfirmingNewGameRequested(false);
+    onNewGame();
   }
 
   return (
@@ -124,9 +144,26 @@ export function GamePanel({
           </label>
 
           <div className="game-panel__button-row">
-            <button onClick={onNewGame} type="button">
-              New game
-            </button>
+            {isConfirmingNewGame ? (
+              <>
+                <p className="game-panel__reset-warning">
+                  Start over? Current progress will be lost.
+                </p>
+                <button onClick={handleConfirmNewGame} type="button">
+                  Confirm new game
+                </button>
+                <button
+                  onClick={() => setIsConfirmingNewGameRequested(false)}
+                  type="button"
+                >
+                  Keep playing
+                </button>
+              </>
+            ) : (
+              <button onClick={handleNewGameClick} type="button">
+                New game
+              </button>
+            )}
 
             {isEngineThinking && onCancelAiMove ? (
               <button onClick={onCancelAiMove} type="button">

@@ -1258,6 +1258,93 @@ describe('BoardScene', () => {
     }
   });
 
+  it('clears stale piece animations immediately when a new game reset revision is published', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender } = render(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          positionResetRevision={0}
+          selectedSquare={null}
+        />,
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e4',
+              square: 'e4',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          positionResetRevision={0}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-white-pawn-e4')).toHaveAttribute(
+        'data-animation-state',
+        'running',
+      );
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '1',
+      );
+
+      rerender(
+        <BoardScene
+          CanvasBoundary={TestCanvasBoundary}
+          legalDestinationSquares={[]}
+          piecePlacements={[
+            {
+              renderId: 'white-pawn-e2',
+              square: 'e2',
+              piece: 'pawn',
+              color: 'white',
+            },
+          ]}
+          positionResetRevision={1}
+          selectedSquare={null}
+        />,
+      );
+
+      expect(screen.getByTestId('board-piece-animation-state')).toHaveAttribute(
+        'data-active-piece-animations',
+        '0',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+        'data-animation-state',
+        'idle',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+        'data-animation-from-square',
+        'e2',
+      );
+      expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+        'data-animation-to-square',
+        'e2',
+      );
+      expect(screen.queryByTestId('board-piece-white-pawn-e4')).not.toBeInTheDocument();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('skips piece move transitions when reduced motion is enabled', async () => {
     const originalMatchMedia = window.matchMedia;
 

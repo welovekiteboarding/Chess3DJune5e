@@ -64,6 +64,7 @@ export interface BoardSceneProps {
   selectedSquare: ChessSquare | null;
   legalDestinationSquares: readonly ChessSquare[];
   piecePlacements?: readonly ChessPiecePlacement[];
+  positionResetRevision?: number;
   onSquareSelect?: (square: ChessSquare) => void;
   CanvasBoundary?: ComponentType<BoardSceneCanvasProps>;
   className?: string;
@@ -256,6 +257,7 @@ export function BoardScene({
   selectedSquare,
   legalDestinationSquares,
   piecePlacements = emptyPiecePlacements,
+  positionResetRevision = 0,
   onSquareSelect,
   CanvasBoundary = DefaultBoardSceneCanvas,
   className,
@@ -301,6 +303,7 @@ export function BoardScene({
   const activePieceAnimationsRef = useRef<Record<string, ActivePieceAnimation>>({});
   const animationFrameRef = useRef<number | null>(null);
   const previousPiecePlacementsRef = useRef(piecePlacements);
+  const lastPositionResetRevisionRef = useRef(positionResetRevision);
   const renderedActivePieceAnimationCount = prefersReducedMotion
     ? 0
     : activePieceAnimationCount;
@@ -335,6 +338,21 @@ export function BoardScene({
       animationFrameRef.current = null;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (lastPositionResetRevisionRef.current === positionResetRevision) {
+      return;
+    }
+
+    lastPositionResetRevisionRef.current = positionResetRevision;
+    previousPiecePlacementsRef.current = piecePlacements;
+    activePieceAnimationsRef.current = {};
+    cancelScheduledAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+    setActivePieceAnimationCount(0);
+    setPieceAnimationMetadataByRenderId({});
+    setPieceAnimationPositionsByRenderId({});
+  }, [piecePlacements, positionResetRevision]);
 
   useLayoutEffect(() => {
     const previousPiecePlacements = previousPiecePlacementsRef.current;
