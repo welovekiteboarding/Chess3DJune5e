@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { GamePanel } from './GamePanel';
@@ -10,7 +10,7 @@ describe('GamePanel', () => {
     { value: 'hard', label: 'Hard' },
   ] as const;
 
-  it('renders current status details and move history', () => {
+  it('renders move history and controls without the retired telemetry clutter', () => {
     render(
       <GamePanel
         aiSide="Black"
@@ -26,32 +26,19 @@ describe('GamePanel', () => {
       />,
     );
 
-    expect(screen.getByText('Status: Check')).toBeInTheDocument();
-    expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
-    expect(screen.getByText('Human side: White')).toBeInTheDocument();
-    expect(screen.getByText('AI side: Black')).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { level: 2, name: 'Command deck' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { level: 3, name: 'Match status' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { level: 3, name: 'Stockfish' }),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { level: 3, name: 'Game controls' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { level: 3, name: 'Move history' }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('game-panel-details')).toBeInTheDocument();
     expect(screen.getByTestId('game-panel-controls')).toBeInTheDocument();
     expect(screen.getByText('1. e4 e5')).toBeInTheDocument();
     expect(screen.getByText('2. Nf3 Nc6')).toBeInTheDocument();
     expect(
       screen.getByText('Latest error: Engine lost connection.'),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent('Check');
     expect(screen.getByTestId('move-history-scroll')).toBeInTheDocument();
     expect(screen.getAllByTestId('move-history-item')).toHaveLength(2);
     expect(screen.getAllByTestId('move-history-item')[0]).toHaveAttribute(
@@ -62,9 +49,16 @@ describe('GamePanel', () => {
       'data-move-value',
       '2. Nf3 Nc6',
     );
+    expect(screen.queryByText('Command deck')).not.toBeInTheDocument();
+    expect(screen.queryByText('Operational console')).not.toBeInTheDocument();
+    expect(screen.queryByText('Match status')).not.toBeInTheDocument();
+    expect(screen.queryByText('Stockfish')).not.toBeInTheDocument();
+    expect(screen.queryByText('Turn')).not.toBeInTheDocument();
+    expect(screen.queryByText('Human')).not.toBeInTheDocument();
+    expect(screen.queryByText('AI seat')).not.toBeInTheDocument();
   });
 
-  it('surfaces quick cockpit telemetry for turn, seats, and engine state', () => {
+  it('hides the compact chess alert during normal ongoing play', () => {
     render(
       <GamePanel
         aiSide="Black"
@@ -80,18 +74,7 @@ describe('GamePanel', () => {
       />,
     );
 
-    expect(screen.getByTestId('game-panel-telemetry-grid')).toBeInTheDocument();
-    const telemetryItems = screen.getAllByTestId('game-panel-telemetry-item');
-
-    expect(telemetryItems).toHaveLength(4);
-    expect(screen.getByText('Turn')).toBeInTheDocument();
-    expect(screen.getByText('White to move')).toBeInTheDocument();
-    expect(screen.getByText('Human')).toBeInTheDocument();
-    expect(screen.getByText('White')).toBeInTheDocument();
-    expect(screen.getByText('AI seat')).toBeInTheDocument();
-    expect(screen.getByText('Black')).toBeInTheDocument();
-    expect(within(telemetryItems[3]).getByText('Engine')).toBeInTheDocument();
-    expect(within(telemetryItems[3]).getByText('Thinking')).toBeInTheDocument();
+    expect(screen.queryByTestId('game-panel-chess-alert')).not.toBeInTheDocument();
   });
 
   it('announces the latest engine error through an accessible alert region', () => {
@@ -292,6 +275,27 @@ describe('GamePanel', () => {
     expect(screen.getByText('Engine idle')).toBeInTheDocument();
   });
 
+  it.each(['Check', 'Checkmate', 'Stalemate', 'Draw'])(
+    'renders a compact chess alert for %s',
+    (status) => {
+      render(
+        <GamePanel
+          aiSide="Black"
+          difficultyOptions={difficultyOptions}
+          humanSide="White"
+          moveHistory={[]}
+          onDifficultyChange={() => {}}
+          onNewGame={() => {}}
+          selectedDifficulty="medium"
+          sideToMove="White to move"
+          status={status}
+        />,
+      );
+
+      expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent(status);
+    },
+  );
+
   it('keeps long move history inside a dedicated scroll region so controls remain separate', () => {
     render(
       <GamePanel
@@ -311,8 +315,6 @@ describe('GamePanel', () => {
     const historyScroll = screen.getByTestId('move-history-scroll');
     const moveHistoryList = screen.getByTestId('move-history-list');
 
-    expect(screen.getByTestId('game-panel-status')).toBeInTheDocument();
-    expect(screen.getByTestId('game-panel-engine')).toBeInTheDocument();
     expect(historySection).toHaveClass('game-panel__history');
     expect(historyScroll).toHaveClass('game-panel__history-scroll');
     expect(
@@ -323,5 +325,7 @@ describe('GamePanel', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(80);
     expect(screen.getByRole('button', { name: 'New game' })).toBeVisible();
     expect(screen.getByLabelText('AI difficulty')).toBeVisible();
+    expect(screen.queryByText('Match status')).not.toBeInTheDocument();
+    expect(screen.queryByText('Stockfish')).not.toBeInTheDocument();
   });
 });

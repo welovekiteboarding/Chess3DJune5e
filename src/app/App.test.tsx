@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import type { AsyncEngineAdapter, BestMoveResponse } from '../engine/engineTypes';
@@ -46,24 +46,6 @@ describe('App', () => {
     expect(screen.getByTestId('board-scene-canvas')).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
-        level: 2,
-        name: 'Command deck',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', {
-        level: 3,
-        name: 'Match status',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', {
-        level: 3,
-        name: 'Stockfish',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', {
         level: 3,
         name: 'Move history',
       }),
@@ -74,8 +56,25 @@ describe('App', () => {
         name: 'Game controls',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Status: Ongoing')).toBeInTheDocument();
-    expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
+    const liveOverview = screen.getByLabelText('Live game overview');
+
+    expect(within(liveOverview).getByText('Status')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Ongoing')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Turn')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('White to move')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Engine')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Idle')).toBeInTheDocument();
+    expect(screen.queryByText('Command deck')).not.toBeInTheDocument();
+    expect(screen.queryByText('Telemetry + controls')).not.toBeInTheDocument();
+    expect(screen.queryByText('Engine standing by')).not.toBeInTheDocument();
+    expect(screen.queryByText('Operational console')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { level: 3, name: 'Match status' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { level: 3, name: 'Stockfish' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Status: Ongoing')).not.toBeInTheDocument();
     expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
     expect(
       screen.getByRole('toolbar', { name: 'Board camera controls' }),
@@ -222,8 +221,10 @@ describe('App', () => {
       'e4',
     );
     expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
-    expect(screen.getByText('Status: Ongoing')).toBeInTheDocument();
-    expect(screen.getByText('Side to move: Black to move')).toBeInTheDocument();
+    const liveOverview = screen.getByLabelText('Live game overview');
+
+    expect(within(liveOverview).getByText('Ongoing')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Black to move')).toBeInTheDocument();
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
@@ -450,7 +451,9 @@ describe('App', () => {
       'e5',
     );
     expect(screen.getByText('2. ai e7e5')).toBeInTheDocument();
-    expect(screen.getByText('Side to move: White to move')).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Live game overview')).getByText('White to move'),
+    ).toBeInTheDocument();
   });
 
   it('ignores a duplicate visible-board destination click after the legal human move already succeeded', () => {
@@ -730,8 +733,13 @@ describe('App', () => {
       />,
     );
 
-    expect(screen.getByText('Status: Checkmate')).toBeInTheDocument();
-    expect(screen.getByText('Side to move: Black to move')).toBeInTheDocument();
+    const liveOverview = screen.getByLabelText('Live game overview');
+
+    expect(within(liveOverview).getByText('Checkmate')).toBeInTheDocument();
+    expect(within(liveOverview).getByText('Black to move')).toBeInTheDocument();
+    expect(screen.getByTestId('game-panel-chess-alert')).toHaveTextContent(
+      'Checkmate',
+    );
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 

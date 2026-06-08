@@ -209,13 +209,6 @@ export function App({
             data-testid="panel-region"
             role="region"
           >
-            <div className="card-chrome card-chrome--panel">
-              <div className="card-chrome__cluster">
-                <span>Command deck</span>
-                <strong>Telemetry + controls</strong>
-              </div>
-              <span>{isEngineThinking ? 'Engine online' : 'Engine standing by'}</span>
-            </div>
             <div className="panel-scroll" data-testid="panel-scroll">
               {pendingPromotion ? (
                 <PromotionDialog
