@@ -34,6 +34,7 @@ import {
 import { SceneLighting, sceneLightingContract } from './lighting';
 
 type BoardCameraViewMode = 'custom' | 'default' | 'overhead';
+type BoardSceneCameraRayDiagnosticsMode = 'disabled' | 'representative';
 
 interface BoardCameraView {
   azimuth: number;
@@ -43,6 +44,7 @@ interface BoardCameraView {
 }
 
 export interface BoardSceneCanvasProps extends PropsWithChildren {
+  cameraRayDiagnosticsSquares?: readonly ChessSquare[];
   cameraView?: BoardCameraView;
   className?: string;
   onCameraTelemetryChange?: (
@@ -58,6 +60,7 @@ export interface BoardSceneCanvasProps extends PropsWithChildren {
 }
 
 export interface BoardSceneProps {
+  cameraRayDiagnosticsMode?: BoardSceneCameraRayDiagnosticsMode;
   selectedSquare: ChessSquare | null;
   legalDestinationSquares: readonly ChessSquare[];
   piecePlacements?: readonly ChessPiecePlacement[];
@@ -119,7 +122,11 @@ type BoardSquareCameraRayStates = Partial<
 >;
 
 const boardSquares = createBoardSquares();
+const boardSquaresBySquare = new Map(
+  boardSquares.map((boardSquare) => [boardSquare.square, boardSquare] as const),
+);
 const emptyPiecePlacements: readonly ChessPiecePlacement[] = [];
+const emptySquareCameraRayStates: BoardSquareCameraRayStates = {};
 const squareSize = boardGeometry.squareSize;
 const boardSquareHeight = boardGeometry.squareHeight;
 const boardHalfSpan = boardGeometry.boardHalfSpan;
@@ -194,6 +201,14 @@ const interactionHitTargetStyle = {
   padding: 0,
   margin: 0,
 } as const;
+const boardSceneCameraRayDiagnosticsSearchParam = 'camera-ray-diagnostics';
+const disabledCameraRayDiagnosticsSquares: readonly ChessSquare[] = [];
+const representativeCameraRayDiagnosticsSquares = [
+  'd4',
+  'e4',
+  'd5',
+  'e5',
+] as const satisfies readonly ChessSquare[];
 const interactionHitTargetMinSizePx = 18;
 const interactionHitTargetMaxSizePx = 72;
 const interactionHitTargetViewportMarginPx = interactionHitTargetMaxSizePx / 2;
@@ -205,6 +220,7 @@ const squareCameraRayOrigin = new Vector3();
 const squareCameraRayDirection = new Vector3();
 
 function DefaultBoardSceneCanvas({
+  cameraRayDiagnosticsSquares = disabledCameraRayDiagnosticsSquares,
   cameraView = defaultCameraView,
   children,
   className,
@@ -223,6 +239,7 @@ function DefaultBoardSceneCanvas({
       shadows
     >
       <BoardSceneCameraRig
+        cameraRayDiagnosticsSquares={cameraRayDiagnosticsSquares}
         cameraView={cameraView}
         onCameraTelemetryChange={onCameraTelemetryChange}
         onSquareCameraRayStatesChange={onSquareCameraRayStatesChange}
@@ -235,6 +252,7 @@ function DefaultBoardSceneCanvas({
 }
 
 export function BoardScene({
+  cameraRayDiagnosticsMode,
   selectedSquare,
   legalDestinationSquares,
   piecePlacements = emptyPiecePlacements,
@@ -242,6 +260,12 @@ export function BoardScene({
   CanvasBoundary = DefaultBoardSceneCanvas,
   className,
 }: BoardSceneProps) {
+  const resolvedCameraRayDiagnosticsMode =
+    getResolvedBoardSceneCameraRayDiagnosticsMode(cameraRayDiagnosticsMode);
+  const cameraRayDiagnosticsSquares = getBoardSceneCameraRayDiagnosticsSquares(
+    resolvedCameraRayDiagnosticsMode,
+  );
+  const isCameraRayDiagnosticsEnabled = cameraRayDiagnosticsSquares.length > 0;
   const legalDestinationSet = new Set(legalDestinationSquares);
   const occupiedSquares = new Set(piecePlacements.map(({ square }) => square));
   const legalDestinationMarkers = Array.from(legalDestinationSet).map((square) => ({
@@ -260,6 +284,9 @@ export function BoardScene({
   );
   const [squareCameraRayStates, setSquareCameraRayStates] =
     useState<BoardSquareCameraRayStates>({});
+  const renderedSquareCameraRayStates = isCameraRayDiagnosticsEnabled
+    ? squareCameraRayStates
+    : emptySquareCameraRayStates;
   const [squareScreenPositions, setSquareScreenPositions] =
     useState<BoardSquareScreenPositions>({});
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -439,6 +466,7 @@ export function BoardScene({
         ref={canvasShellRef}
       >
         <CanvasBoundary
+          cameraRayDiagnosticsSquares={cameraRayDiagnosticsSquares}
           cameraView={cameraView}
           className="board-scene-canvas"
           onCameraTelemetryChange={(nextCameraTelemetry) => {
@@ -451,16 +479,20 @@ export function BoardScene({
                 : nextCameraTelemetry,
             );
           }}
-          onSquareCameraRayStatesChange={(nextSquareCameraRayStates) => {
-            setSquareCameraRayStates((currentSquareCameraRayStates) =>
-              areSquareCameraRayStatesEqual(
-                currentSquareCameraRayStates,
-                nextSquareCameraRayStates,
-              )
-                ? currentSquareCameraRayStates
-                : nextSquareCameraRayStates,
-            );
-          }}
+          onSquareCameraRayStatesChange={
+            isCameraRayDiagnosticsEnabled
+              ? (nextSquareCameraRayStates) => {
+                  setSquareCameraRayStates((currentSquareCameraRayStates) =>
+                    areSquareCameraRayStatesEqual(
+                      currentSquareCameraRayStates,
+                      nextSquareCameraRayStates,
+                    )
+                      ? currentSquareCameraRayStates
+                      : nextSquareCameraRayStates,
+                  );
+                }
+              : undefined
+          }
           onCameraViewChange={handleCameraViewChange}
           onSquareScreenPositionsChange={(nextSquareScreenPositions) => {
             setSquareScreenPositions(nextSquareScreenPositions);
@@ -648,10 +680,10 @@ export function BoardScene({
                 aria-label={`${boardSquare.square} square`}
                 aria-pressed={isSelected}
                 data-camera-ray-clear={String(
-                  squareCameraRayStates[boardSquare.square]?.clear ?? false,
+                  renderedSquareCameraRayStates[boardSquare.square]?.clear ?? false,
                 )}
                 data-camera-ray-hit={
-                  squareCameraRayStates[boardSquare.square]?.hit ?? 'none'
+                  renderedSquareCameraRayStates[boardSquare.square]?.hit ?? 'none'
                 }
                 data-legal-destination={String(isLegalDestination)}
                 data-piece={pieceDescription}
@@ -1209,12 +1241,14 @@ type BoardCameraAction =
   | 'zoom-out';
 
 function BoardSceneCameraRig({
+  cameraRayDiagnosticsSquares,
   cameraView,
   onCameraTelemetryChange,
   onSquareCameraRayStatesChange,
   onCameraViewChange,
   onSquareScreenPositionsChange,
 }: {
+  cameraRayDiagnosticsSquares: readonly ChessSquare[];
   cameraView: BoardCameraView;
   onCameraTelemetryChange?: (
     cameraTelemetry: BoardSceneCameraTelemetry,
@@ -1271,6 +1305,7 @@ function BoardSceneCameraRig({
       camera,
       lastSquareCameraRayStatesSnapshotRef,
       onSquareCameraRayStatesChange,
+      probeSquares: cameraRayDiagnosticsSquares,
       scene,
       size,
     });
@@ -1282,6 +1317,7 @@ function BoardSceneCameraRig({
     });
   }, [
     camera,
+    cameraRayDiagnosticsSquares,
     cameraView,
     onCameraTelemetryChange,
     onSquareCameraRayStatesChange,
@@ -1301,6 +1337,7 @@ function BoardSceneCameraRig({
       camera,
       lastSquareCameraRayStatesSnapshotRef,
       onSquareCameraRayStatesChange,
+      probeSquares: cameraRayDiagnosticsSquares,
       scene,
       size,
     });
@@ -1385,14 +1422,18 @@ function getSquarePosition(boardSquare: BoardSquareDefinition): [number, number]
   ];
 }
 
-function getPiecePosition(square: ChessSquare): [number, number, number] {
-  const boardSquare = boardSquares.find((entry) => entry.square === square);
+function getBoardSquare(square: ChessSquare): BoardSquareDefinition {
+  const boardSquare = boardSquaresBySquare.get(square);
 
   if (!boardSquare) {
-    return [0, getGroundedPiecePlacementY(), 0];
+    throw new Error(`Unknown board square: ${square}`);
   }
 
-  const [x, z] = getSquarePosition(boardSquare);
+  return boardSquare;
+}
+
+function getPiecePosition(square: ChessSquare): [number, number, number] {
+  const [x, z] = getSquarePosition(getBoardSquare(square));
   return [x, getGroundedPiecePlacementY(), z];
 }
 
@@ -2089,6 +2130,7 @@ function publishSquareCameraRayStates({
   camera,
   lastSquareCameraRayStatesSnapshotRef,
   onSquareCameraRayStatesChange,
+  probeSquares,
   scene,
   size,
 }: {
@@ -2097,6 +2139,7 @@ function publishSquareCameraRayStates({
   onSquareCameraRayStatesChange?: (
     squareCameraRayStates: BoardSquareCameraRayStates,
   ) => void;
+  probeSquares: readonly ChessSquare[];
   scene: Object3D;
   size: { height: number; width: number };
 }) {
@@ -2107,7 +2150,7 @@ function publishSquareCameraRayStates({
   const {
     squareCameraRayStates,
     squareCameraRayStatesSnapshot,
-  } = getSquareCameraRayStates(camera, scene, size);
+  } = getSquareCameraRayStates(camera, scene, size, probeSquares);
 
   if (
     squareCameraRayStatesSnapshot ===
@@ -2214,14 +2257,23 @@ function getSquareCameraRayStates(
   camera: Camera,
   scene: Object3D,
   size: { height: number; width: number },
+  probeSquares: readonly ChessSquare[],
 ) {
   const squareCameraRayStates: BoardSquareCameraRayStates = {};
+
+  if (probeSquares.length === 0) {
+    return {
+      squareCameraRayStates,
+      squareCameraRayStatesSnapshot: '',
+    };
+  }
 
   camera.updateMatrixWorld();
   scene.updateMatrixWorld(true);
 
-  const squareCameraRayStatesSnapshot = boardSquares
-    .map((boardSquare) => {
+  const squareCameraRayStatesSnapshot = probeSquares
+    .map((square) => {
+      const boardSquare = getBoardSquare(square);
       const [x, z] = getSquarePosition(boardSquare);
       const projectedSquarePosition = projectBoardPositionToScreen({
         camera,
@@ -2306,6 +2358,32 @@ function getSquareCameraRayState({
 
 function shouldIgnoreSquareCameraRayIntersection(object: Object3D) {
   return object.userData.boardSceneOcclusionBehavior === 'ignore';
+}
+
+function getResolvedBoardSceneCameraRayDiagnosticsMode(
+  cameraRayDiagnosticsMode?: BoardSceneCameraRayDiagnosticsMode,
+): BoardSceneCameraRayDiagnosticsMode {
+  if (cameraRayDiagnosticsMode) {
+    return cameraRayDiagnosticsMode;
+  }
+
+  if (typeof window === 'undefined') {
+    return 'disabled';
+  }
+
+  return new URLSearchParams(window.location.search).get(
+    boardSceneCameraRayDiagnosticsSearchParam,
+  ) === 'representative'
+    ? 'representative'
+    : 'disabled';
+}
+
+function getBoardSceneCameraRayDiagnosticsSquares(
+  cameraRayDiagnosticsMode: BoardSceneCameraRayDiagnosticsMode,
+): readonly ChessSquare[] {
+  return cameraRayDiagnosticsMode === 'representative'
+    ? representativeCameraRayDiagnosticsSquares
+    : disabledCameraRayDiagnosticsSquares;
 }
 
 function getSquareCameraRayIntersectionRole(object: Object3D) {

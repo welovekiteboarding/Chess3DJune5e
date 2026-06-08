@@ -292,7 +292,7 @@ test('keeps the board flat while orbiting and keeps the corner surface contract 
   test.setTimeout(75_000);
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
+  await page.goto('/?camera-ray-diagnostics=representative');
 
   const cameraState = page.getByTestId('board-camera-state');
   const boardCanvasShell = page.getByTestId('board-scene-canvas-shell');
@@ -395,7 +395,7 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   test.setTimeout(150_000);
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
+  await page.goto('/?camera-ray-diagnostics=representative');
 
   const cameraState = page.getByTestId('board-camera-state');
   const boardVisualContract = page.getByTestId('board-visual-contract');
