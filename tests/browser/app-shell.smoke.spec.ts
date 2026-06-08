@@ -700,6 +700,50 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   await waitForPieceAnimationsToComplete(page);
   await expectResolvedPieceIdentity(page, secondAiDestination, 'black');
 
+  await page.getByRole('button', { name: 'New game' }).click();
+  await expect(
+    page.getByText('Start over? Current progress will be lost.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm new game' }).click();
+
+  await expect(page.getByText('No moves yet.')).toBeVisible();
+  await expect(page.getByTestId('move-history-item')).toHaveCount(0);
+  await expect(page.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+    'data-square',
+    'e2',
+  );
+  await expect(page.locator(getSquareButton('e2'))).toHaveAttribute(
+    'data-piece',
+    'white pawn',
+  );
+  await expect(page.locator(getSquareButton('e4'))).toHaveAttribute(
+    'data-piece',
+    'empty',
+  );
+  await expect(page.getByTestId('board-piece-animation-state')).toHaveAttribute(
+    'data-active-piece-animations',
+    '0',
+  );
+  await expect(cameraState).toHaveAttribute('data-view-mode', 'custom');
+  await expectBackdropAbsentFromCurrentCamera(page);
+
+  await clickRenderedSquare(page, 'e2');
+  await clickRenderedSquare(page, 'e4');
+  await waitForPieceAnimationToSettle(
+    page,
+    page.getByTestId('board-piece-white-pawn-e4'),
+    { expectMotion: true },
+  );
+  await expectMoveHistoryEntry(page, 0, '1. human e2e4');
+  await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
+    timeout: 25000,
+  });
+  await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
+  await expect(liveGameOverview.getByText('Idle')).toBeVisible({
+    timeout: 25000,
+  });
+  await waitForPieceAnimationsToComplete(page);
+
   await clickCameraButton(page, 'Zoom out');
   await clickCameraButton(page, 'Reset view');
   await expect(cameraState).toHaveAttribute('data-view-mode', 'default');

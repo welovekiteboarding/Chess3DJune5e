@@ -48,6 +48,7 @@ export type GameMoveAttemptResult =
     };
 
 export interface GameStoreState {
+  boardResetRevision: number;
   currentFen: string;
   selectedSquare: ChessSquare | null;
   legalDestinationSquares: ChessSquare[];
@@ -127,6 +128,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
       humanSide,
       aiSide,
       aiDifficulty: initialDifficulty,
+      boardResetRevision: 0,
       moveHistory: [],
       isEngineThinking: false,
       latestError: null,
@@ -249,7 +251,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
     startNewGame: () => {
       cancelPendingEngineRequest(set);
-      const nextGameState = initialGameState;
+      const nextGameState = createInitialGameState();
 
       set((state) => ({
         ...buildStateSnapshot({
@@ -257,6 +259,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
           humanSide: state.humanSide,
           aiSide: state.aiSide,
           aiDifficulty: state.aiDifficulty,
+          boardResetRevision: state.boardResetRevision + 1,
           moveHistory: [],
           isEngineThinking: false,
           latestError: null,
@@ -486,6 +489,7 @@ function applyMoveResult({
       humanSide: state.humanSide,
       aiSide: state.aiSide,
       aiDifficulty: state.aiDifficulty,
+      boardResetRevision: state.boardResetRevision,
       moveHistory: [
         ...state.moveHistory,
         {
@@ -538,6 +542,7 @@ function buildStateSnapshot({
   humanSide,
   aiSide,
   aiDifficulty,
+  boardResetRevision,
   moveHistory,
   isEngineThinking,
   latestError,
@@ -547,6 +552,7 @@ function buildStateSnapshot({
   humanSide: ChessPlayer;
   aiSide: ChessPlayer;
   aiDifficulty: AiDifficulty;
+  boardResetRevision: number;
   moveHistory: GameMoveRecord[];
   isEngineThinking: boolean;
   latestError: string | null;
@@ -555,6 +561,7 @@ function buildStateSnapshot({
   const displayState = getGameDisplayState(gameState);
 
   return {
+    boardResetRevision,
     currentFen: getFen(gameState),
     selectedSquare: null,
     legalDestinationSquares: [],
@@ -572,6 +579,7 @@ function buildStateSnapshot({
     latestErrorKind,
   } satisfies Pick<
     GameStoreState,
+    | 'boardResetRevision'
     | 'currentFen'
     | 'selectedSquare'
     | 'legalDestinationSquares'

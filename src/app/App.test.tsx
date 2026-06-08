@@ -285,6 +285,62 @@ describe('App', () => {
     expect(screen.queryByTestId('legal-destination-square-e4')).not.toBeInTheDocument();
   });
 
+  it('requires confirmation before resetting an in-progress game and preserves the selected difficulty after reset', async () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+
+    await store.getState().setAiDifficulty('hard');
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New game' }));
+
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(
+      screen.getByRole('button', { name: 'Confirm new game' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Start over? Current progress will be lost.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm new game' }));
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(store.getState().aiDifficulty).toBe('hard');
+    expect(screen.getByLabelText('AI difficulty')).toHaveValue('hard');
+    expect(screen.getByText('No moves yet.')).toBeInTheDocument();
+    expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+      'data-square',
+      'e2',
+    );
+    expect(screen.queryByTestId('board-piece-white-pawn-e4')).not.toBeInTheDocument();
+  });
+
   it('does not retry AI requests in a loop after an engine failure', async () => {
     const engine = createFakeEngine();
     engine.requestBestMove.mockRejectedValue(new Error('Engine offline'));
@@ -808,6 +864,45 @@ describe('App', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Choose promotion piece' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('resets a custom-position session back to the standard starting board through the New game flow', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    expect(
+      screen.getByRole('dialog', { name: 'Choose promotion piece' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New game' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm new game' }));
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(
+      screen.queryByRole('dialog', { name: 'Choose promotion piece' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('board-piece-white-pawn-e2')).toHaveAttribute(
+      'data-square',
+      'e2',
+    );
+    expect(screen.queryByTestId('board-piece-white-queen-e8')).not.toBeInTheDocument();
   });
 });
 

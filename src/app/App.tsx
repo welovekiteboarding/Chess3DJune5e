@@ -44,6 +44,7 @@ export function App({
     cancelAiMove,
     completePendingPromotion,
     cancelPendingPromotion,
+    boardResetRevision,
     currentFen,
     gameStatus,
     gameStatusLabel,
@@ -136,6 +137,12 @@ export function App({
     !isEngineThinking &&
     sideToMove === aiSide &&
     canAiMove(gameStatus);
+  const requiresNewGameConfirmation =
+    moveHistory.length > 0 ||
+    pendingPromotion !== null ||
+    isEngineThinking ||
+    selectedSquare !== null ||
+    legalDestinationSquares.length > 0;
 
   return (
     <div className="app-shell" data-testid="app-shell">
@@ -199,6 +206,7 @@ export function App({
               legalDestinationSquares={legalDestinationSquares}
               onSquareSelect={handleSquareSelect}
               piecePlacements={piecePlacements}
+              positionResetRevision={boardResetRevision}
               selectedSquare={selectedSquare}
             />
           </section>
@@ -228,6 +236,7 @@ export function App({
                 onDifficultyChange={handleDifficultyChange}
                 onNewGame={startNewGame}
                 onRetryAiMove={canRetryAiMove ? handleRetryAiMove : undefined}
+                requiresNewGameConfirmation={requiresNewGameConfirmation}
                 selectedDifficulty={aiDifficulty}
                 sideToMove={sideToMoveLabel}
                 status={gameStatusLabel}

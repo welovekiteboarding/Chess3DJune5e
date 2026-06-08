@@ -26,6 +26,7 @@ describe('gameStore', () => {
     expect(store.getState().sideToMove).toBe('white');
     expect(store.getState().sideToMoveLabel).toBe('White to move');
     expect(store.getState().aiDifficulty).toBe('medium');
+    expect(store.getState().boardResetRevision).toBe(0);
     expect(store.getState().isEngineThinking).toBe(false);
     expect(store.getState().latestError).toBeNull();
     expect(engine.requestBestMove).not.toHaveBeenCalled();
@@ -782,8 +783,54 @@ describe('gameStore', () => {
     expect(store.getState().gameStatusLabel).toBe('Ongoing');
     expect(store.getState().sideToMove).toBe('white');
     expect(store.getState().sideToMoveLabel).toBe('White to move');
+    expect(store.getState().boardResetRevision).toBe(1);
     expect(store.getState().isEngineThinking).toBe(false);
     expect(store.getState().latestError).toBeNull();
+  });
+
+  it('increments the reset revision, clears pending promotion state, and preserves the selected difficulty on new game', async () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    await store.getState().setAiDifficulty('hard');
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+
+    expect(store.getState().pendingPromotion).toEqual({
+      from: 'e7',
+      to: 'e8',
+      choices: ['queen', 'rook', 'bishop', 'knight'],
+    });
+    expect(store.getState().boardResetRevision).toBe(0);
+
+    store.getState().startNewGame();
+
+    expect(store.getState().boardResetRevision).toBe(1);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().aiDifficulty).toBe('hard');
+    expect(store.getState().latestError).toBeNull();
+    expect(store.getState().latestErrorKind).toBeNull();
+  });
+
+  it('resets to the standard starting position even when the current session began from a custom FEN', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    expect(store.getState().currentFen).toBe(promotionReadyFen);
+
+    store.getState().startNewGame();
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
   });
 });
 
