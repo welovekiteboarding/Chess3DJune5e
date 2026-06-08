@@ -120,6 +120,43 @@ function SceneTestCanvasBoundary({ children, className }: BoardSceneCanvasProps)
   );
 }
 
+function DiagnosticsAwareTestCanvasBoundary({
+  cameraRayDiagnosticsSquares,
+  className,
+  onSquareCameraRayStatesChange,
+}: BoardSceneCanvasProps) {
+  return (
+    <div
+      className={className}
+      data-has-camera-ray-diagnostics={String(
+        typeof onSquareCameraRayStatesChange === 'function',
+      )}
+      data-ray-probe-squares={(cameraRayDiagnosticsSquares ?? []).join(',')}
+      data-testid="diagnostics-aware-board-scene-canvas"
+    />
+  );
+}
+
+function DiagnosticsPublishingTestCanvasBoundary({
+  className,
+  onSquareCameraRayStatesChange,
+}: BoardSceneCanvasProps) {
+  return (
+    <div className={className} data-testid="diagnostics-publishing-board-scene-canvas">
+      <button
+        onClick={() =>
+          onSquareCameraRayStatesChange?.({
+            d4: { clear: true, hit: 'board-square-top' },
+          })
+        }
+        type="button"
+      >
+        Publish diagnostics
+      </button>
+    </div>
+  );
+}
+
 describe('BoardScene', () => {
   it('renders a testable 3D board shell with stable square controls', () => {
     const handleSquareSelect = vi.fn();
@@ -314,6 +351,81 @@ describe('BoardScene', () => {
 
     expect(canvas).toHaveAttribute('data-view-mode', 'default');
     expect(Number(canvas.getAttribute('data-distance'))).toBeCloseTo(10.4, 2);
+  });
+
+  it('keeps camera ray diagnostics disabled by default during normal gameplay', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={DiagnosticsAwareTestCanvasBoundary}
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+    ).toHaveAttribute('data-has-camera-ray-diagnostics', 'false');
+    expect(
+      screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+    ).toHaveAttribute('data-ray-probe-squares', '');
+  });
+
+  it('limits explicit camera ray diagnostics to representative probe squares', () => {
+    render(
+      <BoardScene
+        CanvasBoundary={DiagnosticsAwareTestCanvasBoundary}
+        cameraRayDiagnosticsMode="representative"
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+    ).toHaveAttribute('data-has-camera-ray-diagnostics', 'true');
+    expect(
+      screen.getByTestId('diagnostics-aware-board-scene-canvas'),
+    ).toHaveAttribute('data-ray-probe-squares', 'd4,e4,d5,e5');
+  });
+
+  it('clears rendered camera ray attributes when diagnostics are disabled after being enabled', () => {
+    const { rerender } = render(
+      <BoardScene
+        CanvasBoundary={DiagnosticsPublishingTestCanvasBoundary}
+        cameraRayDiagnosticsMode="representative"
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish diagnostics' }));
+
+    expect(screen.getByTestId('board-square-d4')).toHaveAttribute(
+      'data-camera-ray-clear',
+      'true',
+    );
+    expect(screen.getByTestId('board-square-d4')).toHaveAttribute(
+      'data-camera-ray-hit',
+      'board-square-top',
+    );
+
+    rerender(
+      <BoardScene
+        CanvasBoundary={DiagnosticsPublishingTestCanvasBoundary}
+        cameraRayDiagnosticsMode="disabled"
+        legalDestinationSquares={[]}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(screen.getByTestId('board-square-d4')).toHaveAttribute(
+      'data-camera-ray-clear',
+      'false',
+    );
+    expect(screen.getByTestId('board-square-d4')).toHaveAttribute(
+      'data-camera-ray-hit',
+      'none',
+    );
   });
 
   it('publishes deterministic camera bounds and clamps button zoom within them', () => {
