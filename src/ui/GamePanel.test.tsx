@@ -346,6 +346,40 @@ describe('GamePanel', () => {
     },
   );
 
+  it.each(['Checkmate', 'Stalemate', 'Draw'])(
+    'renders a game-over panel with an obvious new game action for %s',
+    (status) => {
+      const handleNewGame = vi.fn();
+
+      render(
+        <GamePanel
+          aiSide="Black"
+          difficultyOptions={difficultyOptions}
+          humanSide="White"
+          moveHistory={['1. human e2e4']}
+          onDifficultyChange={() => {}}
+          onNewGame={handleNewGame}
+          selectedDifficulty="medium"
+          sideToMove="Black to move"
+          status={status}
+        />,
+      );
+
+      expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent(
+        'Game over',
+      );
+      expect(screen.getByTestId('game-panel-game-over')).toHaveTextContent(status);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Start a new game' }),
+      );
+
+      expect(handleNewGame).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByRole('button', { name: 'Confirm new game' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it('keeps long move history inside a dedicated scroll region so controls remain separate', () => {
     render(
       <GamePanel

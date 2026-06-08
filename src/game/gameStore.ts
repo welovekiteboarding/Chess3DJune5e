@@ -142,6 +142,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
         return;
       }
 
+      if (!canRequestMove(state.gameStatus)) {
+        return;
+      }
+
       const gameState = getGameState(state);
 
       if (getTurn(gameState) !== state.humanSide) {
@@ -172,6 +176,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       if (state.pendingPromotion) {
         return failMoveAttempt(set, 'A promotion choice is already pending.');
+      }
+
+      if (!canRequestMove(state.gameStatus)) {
+        return failMoveAttempt(set, 'The game is over.');
       }
 
       if (!state.selectedSquare) {
@@ -423,6 +431,17 @@ export function createGameStore(options: CreateGameStoreOptions) {
     applyAiMove: (uciMove) => {
       const state = get();
       const gameState = getGameState(state);
+
+      if (!canRequestMove(state.gameStatus)) {
+        return failMoveAttempt(
+          set,
+          'The game is over.',
+          {
+            isEngineThinking: false,
+          },
+          'engine',
+        );
+      }
 
       if (getTurn(gameState) !== state.aiSide) {
         return failMoveAttempt(set, 'It is not the AI side to move.');

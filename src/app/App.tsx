@@ -71,6 +71,10 @@ export function App({
     `${index + 1}. ${move.player} ${move.uci}`,
   );
   const renderedMoveHistory = moveHistoryFixture ?? moveHistoryLabels;
+  const isGameOver = isGameOverStatus(gameStatus);
+  const overviewStateLabel = isGameOver ? 'State' : 'Turn';
+  const overviewStateValue = isGameOver ? 'Game over' : sideToMoveLabel;
+  const boardChromeStatus = isGameOver ? gameStatusLabel : sideToMoveLabel;
 
   useEffect(() => {
     if (!autoRequestAiMoves) {
@@ -167,8 +171,8 @@ export function App({
               <strong>{gameStatusLabel}</strong>
             </div>
             <div className="hero-bar__status-chip">
-              <span className="hero-bar__status-label">Turn</span>
-              <strong>{sideToMoveLabel}</strong>
+              <span className="hero-bar__status-label">{overviewStateLabel}</span>
+              <strong>{overviewStateValue}</strong>
             </div>
             <div className="hero-bar__status-chip">
               <span className="hero-bar__status-label">Engine</span>
@@ -189,7 +193,7 @@ export function App({
                 <span>Primary board</span>
                 <strong>Hero viewport</strong>
               </div>
-              <span>{sideToMoveLabel}</span>
+              <span>{boardChromeStatus}</span>
             </div>
             <div className="board-region__intro">
               <div className="board-region__intro-copy">
@@ -239,6 +243,7 @@ export function App({
                 requiresNewGameConfirmation={requiresNewGameConfirmation}
                 selectedDifficulty={aiDifficulty}
                 sideToMove={sideToMoveLabel}
+                gameStatusKind={gameStatus.kind}
                 status={gameStatusLabel}
               />
             </div>
@@ -270,6 +275,10 @@ function handleBoardSquareSelect(store: GameStore, square: ChessSquare) {
 
 function canAiMove(gameStatus: ChessGameStatus): boolean {
   return gameStatus.kind === 'ongoing' || gameStatus.kind === 'check';
+}
+
+function isGameOverStatus(gameStatus: ChessGameStatus): boolean {
+  return !canAiMove(gameStatus);
 }
 
 function shouldAutoRequestAiMove({
