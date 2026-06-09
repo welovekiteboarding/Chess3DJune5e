@@ -286,6 +286,37 @@ describe('BoardScene', () => {
     );
   });
 
+  it('disables square input while keeping camera controls available when board input is locked', () => {
+    const handleSquareSelect = vi.fn();
+
+    render(
+      <BoardScene
+        CanvasBoundary={TestCanvasBoundary}
+        isInputLocked
+        legalDestinationSquares={[]}
+        onSquareSelect={handleSquareSelect}
+        selectedSquare={null}
+      />,
+    );
+
+    expect(screen.getByTestId('board-scene')).toHaveAttribute(
+      'data-input-locked',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'e2 square' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+
+    expect(handleSquareSelect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overhead view' }));
+
+    expect(screen.getByTestId('board-camera-state')).toHaveAttribute(
+      'data-view-mode',
+      'overhead',
+    );
+  });
+
   it('applies camera button actions from the latest manual orbit state', () => {
     render(
       <BoardScene

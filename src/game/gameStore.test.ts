@@ -463,6 +463,50 @@ describe('gameStore', () => {
     expect(store.getState().isEngineThinking).toBe(false);
   });
 
+  it('rejects human input attempts while the AI move request is still in flight', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({ engine });
+
+    store.getState().selectSquare('e2');
+    store.getState().attemptHumanMove('e4');
+
+    const fenBeforeBlockedInput = store.getState().currentFen;
+    void store.getState().requestAiMove();
+
+    await flushAsyncWork();
+
+    expect(store.getState().isEngineThinking).toBe(true);
+
+    store.getState().selectSquare('g1');
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+
+    store.setState({
+      legalDestinationSquares: ['f3', 'h3'],
+      selectedSquare: 'g1',
+    });
+
+    expect(store.getState().attemptHumanMove('f3')).toEqual({
+      ok: false,
+      error: 'Stockfish is thinking. Wait for the AI move to finish.',
+    });
+    expect(store.getState().currentFen).toBe(fenBeforeBlockedInput);
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+    expect(store.getState().latestError).toBe(
+      'Stockfish is thinking. Wait for the AI move to finish.',
+    );
+    expect(store.getState().latestErrorKind).toBe('input');
+  });
+
   it('clears engine thinking after an AI move request fails', async () => {
     const engine = createFakeEngine();
     const deferredResponse = createDeferred<BestMoveResponse>();

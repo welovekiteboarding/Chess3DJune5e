@@ -79,6 +79,7 @@ export interface GameStoreState {
   requestAiMove: () => Promise<GameMoveAttemptResult>;
   cancelAiMove: () => void;
   applyAiMove: (uciMove: ChessUciMove | string) => GameMoveAttemptResult;
+  setAiMoveRequestDelayForTesting: (delayMs: number) => void;
 }
 
 export interface CreateGameStoreOptions {
@@ -102,6 +103,7 @@ export function createGameStore(options: CreateGameStoreOptions) {
   const initialDifficulty = options.aiDifficulty ?? 'medium';
   const initialGameState = resolveInitialGameState(options.initialFen);
   let engineRequestVersion = 0;
+  let aiMoveRequestDelayMs = 0;
   let pendingAiRequestFen: string | null = null;
   let pendingAiRequestPromise: Promise<GameMoveAttemptResult> | null = null;
 
@@ -142,6 +144,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
         return;
       }
 
+      if (isHumanInputLocked(state)) {
+        return;
+      }
+
       if (!canRequestMove(state.gameStatus)) {
         return;
       }
@@ -176,6 +182,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       if (state.pendingPromotion) {
         return failMoveAttempt(set, 'A promotion choice is already pending.');
+      }
+
+      if (isHumanInputLocked(state)) {
+        return failMoveAttempt(set, AI_THINKING_INPUT_LOCK_ERROR);
       }
 
       if (!canRequestMove(state.gameStatus)) {
@@ -329,6 +339,19 @@ export function createGameStore(options: CreateGameStoreOptions) {
 
       requestPromise = (async (): Promise<GameMoveAttemptResult> => {
         try {
+          await delayAiMoveRequest(aiMoveRequestDelayMs);
+
+          if (
+            !isCurrentEngineRequest(
+              get,
+              requestFen,
+              requestVersion,
+              () => engineRequestVersion,
+            )
+          ) {
+            return createSupersededAiMoveAttempt();
+          }
+
           await engine.setDifficulty(state.aiDifficulty);
 
           if (
@@ -456,6 +479,10 @@ export function createGameStore(options: CreateGameStoreOptions) {
         player: 'ai',
       });
     },
+
+    setAiMoveRequestDelayForTesting: (delayMs) => {
+      aiMoveRequestDelayMs = Math.max(0, delayMs);
+    },
   }));
 }
 
@@ -553,6 +580,8 @@ function createSupersededAiMoveAttempt(): GameMoveAttemptResult {
   };
 }
 
+const AI_THINKING_INPUT_LOCK_ERROR =
+  'Stockfish is thinking. Wait for the AI move to finish.';
 const CANCELLED_AI_MOVE_ERROR =
   'AI move was cancelled. Retry AI move to continue.';
 
@@ -655,6 +684,12 @@ function canRequestMove(gameStatus: ChessGameStatus): boolean {
   return gameStatus.kind === 'ongoing' || gameStatus.kind === 'check';
 }
 
+function isHumanInputLocked(
+  state: Pick<GameStoreState, 'isEngineThinking'>,
+): boolean {
+  return state.isEngineThinking;
+}
+
 function isCurrentEngineRequest(
   get: () => GameStoreState,
   requestFen: string,
@@ -669,4 +704,14 @@ function isCurrentEngineRequest(
 
 function toErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+function delayAiMoveRequest(delayMs: number) {
+  if (delayMs <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
 }
