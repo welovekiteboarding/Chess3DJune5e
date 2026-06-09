@@ -8,6 +8,10 @@ interface ProjectedSquarePosition {
 
 const backdropOcclusionProbeSquares = ['d4', 'e4', 'd5', 'e5'] as const;
 const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+const checkReadyFen = '4k3/8/8/8/8/8/4q3/4K3 w - - 0 1';
+const checkmateFen = '7k/6Q1/6K1/8/8/8/8/8 b - - 0 1';
+const stalemateFen = '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1';
+const drawFen = '8/8/8/8/8/8/2k5/3K4 w - - 0 1';
 
 function getSquareButton(square: string) {
   return `[data-testid="board-square-${square}"]`;
@@ -162,6 +166,52 @@ async function clickCameraButton(page: Page, name: string) {
   const cameraButton = page.getByRole('button', { name });
   await expect(cameraButton).toBeVisible();
   await cameraButton.dispatchEvent('click');
+}
+
+async function waitForBrowserFixtureHook(page: Page) {
+  await page.waitForFunction(() =>
+    Boolean(
+      (
+        window as Window & {
+          __CHESS3D_E2E__?: unknown;
+        }
+      ).__CHESS3D_E2E__,
+    ),
+  );
+}
+
+async function loadPositionFixture(page: Page, fen: string) {
+  await waitForBrowserFixtureHook(page);
+  await page.evaluate((fixtureFen) => {
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        loadPositionFixture: (fen: string) => void;
+      };
+    };
+
+    if (!appWindow.__CHESS3D_E2E__) {
+      throw new Error('Browser fixture hook not found');
+    }
+
+    appWindow.__CHESS3D_E2E__.loadPositionFixture(fixtureFen);
+  }, fen);
+}
+
+async function setAiMoveDelayFixture(page: Page, delayMs: number) {
+  await waitForBrowserFixtureHook(page);
+  await page.evaluate((fixtureDelayMs) => {
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        setAiMoveDelayFixture: (delayMs: number) => void;
+      };
+    };
+
+    if (!appWindow.__CHESS3D_E2E__) {
+      throw new Error('Browser fixture hook not found');
+    }
+
+    appWindow.__CHESS3D_E2E__.setAiMoveDelayFixture(fixtureDelayMs);
+  }, delayMs);
 }
 
 async function waitForPieceAnimationToSettle(
@@ -760,9 +810,7 @@ test('shows a compact thinking state and blocks human board input until the AI m
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/?e2e-fixture=1');
 
-  await page.evaluate(() => {
-    window.__CHESS3D_E2E__?.setAiMoveDelayFixture?.(1500);
-  });
+  await setAiMoveDelayFixture(page, 1500);
 
   const liveGameOverview = page.getByLabel('Live game overview');
   const e2Square = page.locator(getSquareButton('e2'));
@@ -797,6 +845,60 @@ test('shows a compact thinking state and blocks human board input until the AI m
   await expect(g1Square).toBeEnabled();
   await expect(page.getByTestId('board-hit-target-g1')).toHaveCount(1);
   await expect(e2Square).toHaveAttribute('data-piece', 'empty');
+});
+
+test('resets selection, legal moves, move history, and transient errors when starting a new game', async ({
+  page,
+}) => {
+  test.setTimeout(75_000);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?e2e-fixture=1');
+
+  const e2Square = page.locator(getSquareButton('e2'));
+  const e3Square = page.locator(getSquareButton('e3'));
+  const e4Square = page.locator(getSquareButton('e4'));
+
+  await clickRenderedSquare(page, 'e2');
+  await expect(e2Square).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveCount(1);
+  await expect(e3Square).toHaveAttribute('data-legal-destination', 'true');
+  await expect(e4Square).toHaveAttribute('data-legal-destination', 'true');
+
+  await page.getByRole('button', { name: 'New game' }).click();
+  await page.getByRole('button', { name: 'Confirm new game' }).click();
+
+  await expect(e2Square).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('selected-square-highlight-e2')).toHaveCount(0);
+  await expect(e3Square).toHaveAttribute('data-legal-destination', 'false');
+  await expect(e4Square).toHaveAttribute('data-legal-destination', 'false');
+  await expect(page.getByText('No moves yet.')).toBeVisible();
+  await expect(page.getByRole('alert', { name: 'Engine error' })).toHaveCount(0);
+
+  await setAiMoveDelayFixture(page, 1500);
+  await clickRenderedSquare(page, 'e2');
+  await clickRenderedSquare(page, 'e4');
+  await expectMoveHistoryEntry(page, 0, '1. human e2e4');
+  await expect(page.getByTestId('game-panel-thinking-indicator')).toHaveText(
+    'Stockfish is thinking...',
+  );
+
+  await page.getByRole('button', { name: 'Cancel AI move' }).click();
+  await expect(page.getByRole('alert', { name: 'Engine error' })).toHaveText(
+    'Latest error: AI move was cancelled. Retry AI move to continue.',
+  );
+  await expect(page.getByRole('button', { name: 'Retry AI move' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'New game' }).click();
+  await page.getByRole('button', { name: 'Confirm new game' }).click();
+
+  await expect(page.getByText('No moves yet.')).toBeVisible();
+  await expect(page.getByTestId('move-history-item')).toHaveCount(0);
+  await expect(page.getByRole('alert', { name: 'Engine error' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Retry AI move' })).toHaveCount(0);
+  await expect(page.getByTestId('game-panel-thinking-indicator')).toHaveCount(0);
+  await expect(e2Square).toHaveAttribute('data-piece', 'white pawn');
+  await expect(e4Square).toHaveAttribute('data-piece', 'empty');
 });
 
 test('keeps every piece grounded under a side-view camera using deterministic scene data', async ({
@@ -841,29 +943,7 @@ test('shows the promotion choice UI in the real browser and applies the selected
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/?e2e-fixture=1&camera-ray-diagnostics=representative');
-  await page.waitForFunction(() =>
-    Boolean(
-      (
-        window as Window & {
-          __CHESS3D_E2E__?: unknown;
-        }
-      ).__CHESS3D_E2E__,
-    ),
-  );
-
-  await page.evaluate((fixtureFen) => {
-    const appWindow = window as Window & {
-      __CHESS3D_E2E__?: {
-        loadPositionFixture: (fen: string) => void;
-      };
-    };
-
-    if (!appWindow.__CHESS3D_E2E__) {
-      throw new Error('Browser fixture hook not found');
-    }
-
-    appWindow.__CHESS3D_E2E__.loadPositionFixture(fixtureFen);
-  }, promotionReadyFen);
+  await loadPositionFixture(page, promotionReadyFen);
 
   await expectResolvedPieceIdentity(page, 'e7', 'white');
   await expect(page.locator(getSquareButton('e7'))).toHaveAttribute(
@@ -918,6 +998,45 @@ test('shows the promotion choice UI in the real browser and applies the selected
   await expectBackdropAbsentFromCurrentCamera(page);
 });
 
+test('renders deterministic check and game-over fixtures through the browser harness', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?e2e-fixture=1');
+
+  await loadPositionFixture(page, checkReadyFen);
+  await expect(page.getByTestId('game-panel-chess-alert')).toContainText('Check');
+  await expect(page.getByTestId('game-panel-game-over')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'e1 square' })).toHaveAttribute(
+    'data-piece',
+    'white king',
+  );
+
+  await loadPositionFixture(page, checkmateFen);
+  await expect(page.getByTestId('game-panel-chess-alert')).toContainText(
+    'Checkmate',
+  );
+  await expect(page.getByTestId('game-panel-game-over')).toContainText(
+    'Checkmate',
+  );
+  await clickRenderedSquare(page, 'g7');
+  await expect(page.locator(getSquareButton('g7'))).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(page.getByTestId('selected-square-highlight-g7')).toHaveCount(0);
+
+  await loadPositionFixture(page, stalemateFen);
+  await expect(page.getByTestId('game-panel-game-over')).toContainText(
+    'Stalemate',
+  );
+
+  await loadPositionFixture(page, drawFen);
+  await expect(page.getByTestId('game-panel-game-over')).toContainText('Draw');
+  await expect(page.getByTestId('game-panel-chess-alert')).toContainText('Draw');
+});
+
 test('keeps the board visible and scrolls long move history inside the controls panel', async ({
   page,
 }) => {
@@ -928,16 +1047,7 @@ test('keeps the board visible and scrolls long move history inside the controls 
     name: 'Move history entries',
   });
   await expect(moveHistoryScroll).toBeVisible();
-  await page.waitForFunction(() =>
-    Boolean(
-      (
-        window as Window & {
-          __CHESS3D_E2E__?: unknown;
-        }
-      ).__CHESS3D_E2E__,
-    ),
-  );
-
+  await waitForBrowserFixtureHook(page);
   await page.evaluate((fixtureMoves) => {
     const appWindow = window as Window & {
       __CHESS3D_E2E__?: {
