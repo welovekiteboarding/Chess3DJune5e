@@ -752,6 +752,53 @@ test('boots the real browser Stockfish path and keeps move surfaces stable at de
   expect(await getCameraDistance(cameraState)).toBeCloseTo(10.4, 1);
 });
 
+test('shows a compact thinking state and blocks human board input until the AI move resolves', async ({
+  page,
+}) => {
+  test.setTimeout(75_000);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?e2e-fixture=1');
+
+  await page.evaluate(() => {
+    window.__CHESS3D_E2E__?.setAiMoveDelayFixture?.(1500);
+  });
+
+  const liveGameOverview = page.getByLabel('Live game overview');
+  const e2Square = page.locator(getSquareButton('e2'));
+  const g1Square = page.locator(getSquareButton('g1'));
+
+  await clickRenderedSquare(page, 'e2');
+  await clickRenderedSquare(page, 'e4');
+
+  await expect(page.getByTestId('game-panel-thinking-indicator')).toHaveText(
+    'Stockfish is thinking...',
+  );
+  await expect(page.getByRole('button', { name: 'Cancel AI move' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry AI move' })).toHaveCount(0);
+  await expect(g1Square).toBeDisabled();
+  await expect(page.getByTestId('board-hit-target-g1')).toHaveCount(0);
+
+  await g1Square.click({ force: true });
+
+  await expect(g1Square).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('move-history-item')).toHaveCount(1);
+  await expectMoveHistoryEntry(page, 0, '1. human e2e4');
+  await expect(liveGameOverview.getByText('Thinking')).toBeVisible();
+
+  await expect(page.getByTestId('move-history-item')).toHaveCount(2, {
+    timeout: 25000,
+  });
+  await expectMoveHistoryEntry(page, 1, /\d+\. ai ([a-h][1-8][a-h][1-8][nbrq]?)/);
+  await expect(liveGameOverview.getByText('Idle')).toBeVisible({
+    timeout: 25000,
+  });
+  await expect(page.getByTestId('game-panel-thinking-indicator')).toHaveCount(0);
+  await expect(g1Square).toBeEnabled();
+  await expect(page.getByTestId('board-hit-target-g1')).toHaveCount(1);
+  await expect(e2Square).toHaveAttribute('data-piece', 'empty');
+});
+
 test('keeps every piece grounded under a side-view camera using deterministic scene data', async ({
   page,
 }) => {

@@ -61,6 +61,7 @@ export interface BoardSceneCanvasProps extends PropsWithChildren {
 
 export interface BoardSceneProps {
   cameraRayDiagnosticsMode?: BoardSceneCameraRayDiagnosticsMode;
+  isInputLocked?: boolean;
   selectedSquare: ChessSquare | null;
   legalDestinationSquares: readonly ChessSquare[];
   piecePlacements?: readonly ChessPiecePlacement[];
@@ -254,6 +255,7 @@ function DefaultBoardSceneCanvas({
 
 export function BoardScene({
   cameraRayDiagnosticsMode,
+  isInputLocked = false,
   selectedSquare,
   legalDestinationSquares,
   piecePlacements = emptyPiecePlacements,
@@ -474,6 +476,7 @@ export function BoardScene({
     <section
       aria-label="3D chess board scene"
       className={className}
+      data-input-locked={String(isInputLocked)}
       data-testid="board-scene"
     >
       <div
@@ -529,8 +532,15 @@ export function BoardScene({
               return (
                 <group
                   key={boardSquare.square}
-                  onClick={(event) =>
-                    handleSceneSquareClick(event, boardSquare.square, onSquareSelect)
+                  onClick={
+                    isInputLocked
+                      ? undefined
+                      : (event) =>
+                          handleSceneSquareClick(
+                            event,
+                            boardSquare.square,
+                            onSquareSelect,
+                          )
                   }
                   position={[x, 0, z]}
                 >
@@ -548,7 +558,7 @@ export function BoardScene({
               return (
                 <ChessPieceMesh
                   key={piecePlacement.renderId}
-                  onSelect={onSquareSelect}
+                  onSelect={isInputLocked ? undefined : onSquareSelect}
                   piecePlacement={piecePlacement}
                   position={position}
                 />
@@ -564,7 +574,9 @@ export function BoardScene({
           ref={interactionHitTargetOverlayRef}
           style={interactionHitTargetOverlayStyle}
         >
-          {boardSquares.map((boardSquare) => {
+          {isInputLocked
+            ? null
+            : boardSquares.map((boardSquare) => {
             const hitTargetStyle = getInteractionHitTargetStyle(
               boardSquare,
               squareScreenPositions,
@@ -697,6 +709,7 @@ export function BoardScene({
               <button
                 aria-label={`${boardSquare.square} square`}
                 aria-pressed={isSelected}
+                disabled={isInputLocked}
                 data-camera-ray-clear={String(
                   renderedSquareCameraRayStates[boardSquare.square]?.clear ?? false,
                 )}

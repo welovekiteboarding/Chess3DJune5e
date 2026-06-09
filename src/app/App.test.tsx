@@ -698,6 +698,61 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('locks visible-board human input while Stockfish is thinking and keeps New game available', async () => {
+    const engine = createFakeEngine();
+    const deferredResponse = createDeferred<BestMoveResponse>();
+    engine.requestBestMove.mockReturnValue(deferredResponse.promise);
+
+    const store = createGameStore({
+      engine,
+    });
+
+    render(
+      <App
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'e2 square' }));
+    fireEvent.click(screen.getByRole('button', { name: 'e4 square' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('game-panel-thinking-indicator')).toHaveTextContent(
+        'Stockfish is thinking...',
+      ),
+    );
+
+    expect(screen.getByRole('button', { name: 'g1 square' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Retry AI move' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Cancel AI move' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New game' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'g1 square' }));
+
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'human',
+        uci: 'e2e4',
+      },
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New game' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm new game' }));
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().isEngineThinking).toBe(false);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(engine.cancelSearch).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a cancel control during auto-play, then exposes a retry path after cancellation', async () => {
     const engine = createFakeEngine();
     const firstResponse = createDeferred<BestMoveResponse>();

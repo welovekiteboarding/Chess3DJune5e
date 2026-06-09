@@ -210,6 +210,13 @@ describe('GamePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel AI move' }));
 
     expect(handleCancelAiMove).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('game-panel-thinking-indicator')).toHaveTextContent(
+      'Stockfish is thinking...',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Retry AI move' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New game' })).toBeInTheDocument();
   });
 
   it('does not show a cancel control when the engine is not thinking', () => {

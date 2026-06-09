@@ -151,6 +151,18 @@ export function GamePanel({
           <span className="game-panel__section-chip">Local</span>
         </div>
         <div className="game-panel__control-grid">
+          {isEngineThinking ? (
+            <p
+              aria-atomic="true"
+              aria-live="polite"
+              className="game-panel__engine-status"
+              data-testid="game-panel-thinking-indicator"
+              role="status"
+            >
+              Stockfish is thinking...
+            </p>
+          ) : null}
+
           <label
             className="game-panel__field"
             htmlFor="game-panel-difficulty"

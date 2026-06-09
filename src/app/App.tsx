@@ -28,6 +28,7 @@ declare global {
     __CHESS3D_E2E__?: {
       loadPositionFixture: (fen: string) => void;
       setMoveHistoryFixture: (moves: readonly string[]) => void;
+      setAiMoveDelayFixture: (delayMs: number) => void;
     };
   }
 }
@@ -78,6 +79,7 @@ export function App({
   );
   const renderedMoveHistory = moveHistoryFixture ?? moveHistoryLabels;
   const isGameOver = isGameOverStatus(gameStatus);
+  const isBoardInputLocked = isEngineThinking;
   const overviewStateLabel = isGameOver ? 'State' : 'Turn';
   const overviewStateValue = isGameOver ? 'Game over' : sideToMoveLabel;
   const boardChromeStatus = isGameOver ? gameStatusLabel : sideToMoveLabel;
@@ -129,6 +131,9 @@ export function App({
       },
       setMoveHistoryFixture(moves) {
         setMoveHistoryFixture([...moves]);
+      },
+      setAiMoveDelayFixture(delayMs) {
+        store.getState().setAiMoveRequestDelayForTesting(delayMs);
       },
     };
 
@@ -220,6 +225,7 @@ export function App({
             <BoardScene
               CanvasBoundary={boardSceneCanvasBoundary}
               className="board-scene"
+              isInputLocked={isBoardInputLocked}
               legalDestinationSquares={legalDestinationSquares}
               onSquareSelect={handleSquareSelect}
               piecePlacements={piecePlacements}
@@ -269,6 +275,10 @@ export function App({
 
 function handleBoardSquareSelect(store: GameStore, square: ChessSquare) {
   const state = store.getState();
+
+  if (state.isEngineThinking) {
+    return;
+  }
 
   if (state.selectedSquare === square) {
     state.clearSelection();
