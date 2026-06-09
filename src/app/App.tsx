@@ -4,7 +4,12 @@ import { useStore } from 'zustand';
 
 import '../styles/globals.css';
 import type { ChessGameStatus, ChessSquare } from '../chess/chessTypes';
-import { getPiecePlacementsFromFen } from '../chess/chessRules';
+import {
+  getFen,
+  getGameDisplayState,
+  getPiecePlacementsFromFen,
+  loadGameStateFromFen,
+} from '../chess/chessRules';
 import { AI_DIFFICULTY_LEVELS, type AiDifficulty } from '../engine/engineTypes';
 import type { GameStore, GameStoreState } from '../game/gameStore';
 import { BoardScene, type BoardSceneCanvasProps } from '../scene/BoardScene';
@@ -21,6 +26,7 @@ const browserFixtureSearchParam = 'e2e-fixture';
 declare global {
   interface Window {
     __CHESS3D_E2E__?: {
+      loadPositionFixture: (fen: string) => void;
       setMoveHistoryFixture: (moves: readonly string[]) => void;
     };
   }
@@ -117,6 +123,10 @@ export function App({
     }
 
     window.__CHESS3D_E2E__ = {
+      loadPositionFixture(fen) {
+        setMoveHistoryFixture(null);
+        loadFixturePosition(store, fen);
+      },
       setMoveHistoryFixture(moves) {
         setMoveHistoryFixture([...moves]);
       },
@@ -125,7 +135,7 @@ export function App({
     return () => {
       delete window.__CHESS3D_E2E__;
     };
-  }, [isBrowserFixtureEnabled]);
+  }, [isBrowserFixtureEnabled, store]);
 
   function handleSquareSelect(square: ChessSquare) {
     handleBoardSquareSelect(store, square);
@@ -320,4 +330,31 @@ function hasBrowserFixtureFlag() {
   return new URLSearchParams(window.location.search).has(
     browserFixtureSearchParam,
   );
+}
+
+function loadFixturePosition(store: GameStore, fen: string) {
+  const result = loadGameStateFromFen(fen);
+
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+
+  const displayState = getGameDisplayState(result.gameState);
+
+  store.setState((state) => ({
+    ...state,
+    boardResetRevision: state.boardResetRevision + 1,
+    currentFen: getFen(result.gameState),
+    selectedSquare: null,
+    legalDestinationSquares: [],
+    pendingPromotion: null,
+    moveHistory: [],
+    gameStatus: displayState.gameStatus,
+    gameStatusLabel: displayState.gameStatusLabel,
+    sideToMove: displayState.sideToMove,
+    sideToMoveLabel: displayState.sideToMoveLabel,
+    isEngineThinking: false,
+    latestError: null,
+    latestErrorKind: null,
+  }));
 }
