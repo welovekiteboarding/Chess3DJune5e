@@ -6,9 +6,16 @@ import { createGameStore } from './gameStore';
 
 describe('gameStore', () => {
   const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+  const aiPromotionReadyFen = '7K/8/8/8/8/8/4p3/k7 b - - 0 1';
   const checkFen = '4Q1k1/8/8/8/8/8/8/K7 b - - 0 1';
   const stalemateFen = '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1';
   const drawFen = '8/8/8/8/8/8/2k5/3K4 w - - 0 1';
+  const promotionFenByPiece = {
+    queen: '4Q2k/8/8/8/8/8/8/4K3 b - - 0 1',
+    rook: '4R2k/8/8/8/8/8/8/4K3 b - - 0 1',
+    bishop: '4B2k/8/8/8/8/8/8/4K3 b - - 0 1',
+    knight: '4N2k/8/8/8/8/8/8/4K3 b - - 0 1',
+  } as const;
 
   it('initializes a local human-vs-AI game from the starting position', () => {
     const engine = createFakeEngine();
@@ -211,38 +218,46 @@ describe('gameStore', () => {
     expect(engine.requestBestMove).not.toHaveBeenCalled();
   });
 
-  it('completes a pending promotion with queen and clears pending promotion state', () => {
-    const engine = createFakeEngine();
-    const store = createGameStore({
-      engine,
-      initialFen: promotionReadyFen,
-    });
+  it.each([
+    ['queen', 'q'],
+    ['rook', 'r'],
+    ['bishop', 'b'],
+    ['knight', 'n'],
+  ] as const)(
+    'completes a pending promotion with %s and clears pending promotion state',
+    (promotion, promotionCode) => {
+      const engine = createFakeEngine();
+      const store = createGameStore({
+        engine,
+        initialFen: promotionReadyFen,
+      });
 
-    store.getState().selectSquare('e7');
-    store.getState().attemptHumanMove('e8');
+      store.getState().selectSquare('e7');
+      store.getState().attemptHumanMove('e8');
 
-    const result = store.getState().completePendingPromotion('queen');
+      const result = store.getState().completePendingPromotion(promotion);
 
-    expect(result).toEqual({
-      ok: true,
-      move: {
-        from: 'e7',
-        to: 'e8',
-        promotion: 'queen',
-        uci: 'e7e8q',
-      },
-    });
-    expect(store.getState().currentFen).toBe('4Q2k/8/8/8/8/8/8/4K3 b - - 0 1');
-    expect(store.getState().moveHistory).toEqual([
-      {
-        player: 'human',
-        uci: 'e7e8q',
-      },
-    ]);
-    expect(store.getState().pendingPromotion).toBeNull();
-    expect(store.getState().latestError).toBeNull();
-    expect(engine.requestBestMove).not.toHaveBeenCalled();
-  });
+      expect(result).toEqual({
+        ok: true,
+        move: {
+          from: 'e7',
+          to: 'e8',
+          promotion,
+          uci: `e7e8${promotionCode}`,
+        },
+      });
+      expect(store.getState().currentFen).toBe(promotionFenByPiece[promotion]);
+      expect(store.getState().moveHistory).toEqual([
+        {
+          player: 'human',
+          uci: `e7e8${promotionCode}`,
+        },
+      ]);
+      expect(store.getState().pendingPromotion).toBeNull();
+      expect(store.getState().latestError).toBeNull();
+      expect(engine.requestBestMove).not.toHaveBeenCalled();
+    },
+  );
 
   it('cancels a pending promotion without changing the position', () => {
     const engine = createFakeEngine();
@@ -260,6 +275,25 @@ describe('gameStore', () => {
     expect(store.getState().pendingPromotion).toBeNull();
     expect(store.getState().latestError).toBeNull();
     expect(engine.requestBestMove).not.toHaveBeenCalled();
+  });
+
+  it('clears a pending promotion when starting a new game', () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+      initialFen: promotionReadyFen,
+    });
+
+    store.getState().selectSquare('e7');
+    store.getState().attemptHumanMove('e8');
+    store.getState().startNewGame();
+
+    expect(store.getState().currentFen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().selectedSquare).toBeNull();
+    expect(store.getState().legalDestinationSquares).toEqual([]);
+    expect(store.getState().moveHistory).toEqual([]);
   });
 
   it('applies a valid fake AI move through the same chess validation boundary', () => {
@@ -293,6 +327,48 @@ describe('gameStore', () => {
       },
     ]);
     expect(store.getState().latestError).toBeNull();
+  });
+
+  it('applies an AI promotion move returned from Stockfish through the chess validation boundary', async () => {
+    const engine = createFakeEngine();
+    engine.requestBestMove.mockResolvedValue({
+      difficulty: 'medium',
+      fen: aiPromotionReadyFen,
+      move: 'e2e1n',
+    });
+    const store = createGameStore({
+      engine,
+      initialFen: aiPromotionReadyFen,
+    });
+
+    const result = await store.getState().requestAiMove();
+
+    expect(result).toEqual({
+      ok: true,
+      move: {
+        from: 'e2',
+        to: 'e1',
+        promotion: 'knight',
+        uci: 'e2e1n',
+      },
+    });
+    expect(store.getState().moveHistory).toEqual([
+      {
+        player: 'ai',
+        uci: 'e2e1n',
+      },
+    ]);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(store.getState().latestError).toBeNull();
+    expect(getPiecePlacementsFromFen(store.getState().currentFen)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          square: 'e1',
+          piece: 'knight',
+          color: 'black',
+        }),
+      ]),
+    );
   });
 
   it('shares one in-flight AI request for the same position and applies one validated response', async () => {
