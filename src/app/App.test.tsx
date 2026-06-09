@@ -180,6 +180,7 @@ describe('App', () => {
 
     const appWindow = window as Window & {
       __CHESS3D_E2E__?: {
+        loadPositionFixture: (fen: string) => void;
         setMoveHistoryFixture: (moves: readonly string[]) => void;
       };
     };
@@ -196,6 +197,50 @@ describe('App', () => {
     expect(screen.getByTestId('move-history-scroll')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New game' })).toBeVisible();
     expect(screen.getByLabelText('AI difficulty')).toBeVisible();
+
+    window.history.pushState({}, '', originalUrl);
+  });
+
+  it('allows the browser regression harness to seed a promotion-ready position through app state', async () => {
+    const store = createGameStore({
+      engine: createFakeEngine(),
+    });
+    const originalUrl = window.location.href;
+
+    window.history.pushState({}, '', `${window.location.pathname}?e2e-fixture=1`);
+
+    render(
+      <App
+        autoRequestAiMoves={false}
+        boardSceneCanvasBoundary={TestCanvasBoundary}
+        store={store}
+      />,
+    );
+
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        loadPositionFixture: (fen: string) => void;
+        setMoveHistoryFixture: (moves: readonly string[]) => void;
+      };
+    };
+
+    appWindow.__CHESS3D_E2E__?.loadPositionFixture(promotionReadyFen);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('board-piece-white-pawn-e7')).toHaveAttribute(
+        'data-square',
+        'e7',
+      ),
+    );
+
+    expect(store.getState().currentFen).toBe(promotionReadyFen);
+    expect(store.getState().moveHistory).toEqual([]);
+    expect(store.getState().pendingPromotion).toBeNull();
+    expect(screen.getByRole('button', { name: 'e7 square' })).toHaveAttribute(
+      'data-piece',
+      'white pawn',
+    );
+    expect(screen.queryByTestId('board-piece-white-pawn-e2')).not.toBeInTheDocument();
 
     window.history.pushState({}, '', originalUrl);
   });

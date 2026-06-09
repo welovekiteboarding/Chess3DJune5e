@@ -7,6 +7,7 @@ interface ProjectedSquarePosition {
 }
 
 const backdropOcclusionProbeSquares = ['d4', 'e4', 'd5', 'e5'] as const;
+const promotionReadyFen = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
 
 function getSquareButton(square: string) {
   return `[data-testid="board-square-${square}"]`;
@@ -786,6 +787,88 @@ test('keeps every piece grounded under a side-view camera using deterministic sc
     expect(piece.boardSurfaceY).toBe('0.09');
     expect(piece.placementY).toBe('0.09');
   });
+});
+
+test('shows the promotion choice UI in the real browser and applies the selected promotion after camera changes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/?e2e-fixture=1&camera-ray-diagnostics=representative');
+  await page.waitForFunction(() =>
+    Boolean(
+      (
+        window as Window & {
+          __CHESS3D_E2E__?: unknown;
+        }
+      ).__CHESS3D_E2E__,
+    ),
+  );
+
+  await page.evaluate((fixtureFen) => {
+    const appWindow = window as Window & {
+      __CHESS3D_E2E__?: {
+        loadPositionFixture: (fen: string) => void;
+      };
+    };
+
+    if (!appWindow.__CHESS3D_E2E__) {
+      throw new Error('Browser fixture hook not found');
+    }
+
+    appWindow.__CHESS3D_E2E__.loadPositionFixture(fixtureFen);
+  }, promotionReadyFen);
+
+  await expectResolvedPieceIdentity(page, 'e7', 'white');
+  await expect(page.locator(getSquareButton('e7'))).toHaveAttribute(
+    'data-piece',
+    'white pawn',
+  );
+  await expect(page.locator(getSquareButton('e8'))).toHaveAttribute(
+    'data-piece',
+    'empty',
+  );
+
+  await clickCameraButton(page, 'Rotate left');
+  await clickCameraButton(page, 'Zoom out');
+  await clickCameraButton(page, 'Tilt down');
+  await expectBackdropAbsentFromCurrentCamera(page);
+
+  await clickRenderedSquare(page, 'e7');
+  await expect(page.locator(getSquareButton('e8'))).toHaveAttribute(
+    'data-legal-destination',
+    'true',
+  );
+
+  await clickRenderedSquare(page, 'e8');
+  await expect(
+    page.getByRole('dialog', { name: 'Choose promotion piece' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Promote to queen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Promote to rook' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Promote to bishop' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Promote to knight' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Promote to knight' }).click();
+
+  await expect(
+    page.getByRole('dialog', { name: 'Choose promotion piece' }),
+  ).toHaveCount(0);
+  await waitForPieceAnimationToSettle(
+    page,
+    page.getByTestId('board-piece-white-knight-e8'),
+    { expectMotion: true },
+  );
+  await expectResolvedPieceIdentity(page, 'e8', 'white');
+  await expect(page.getByTestId('board-piece-white-knight-e8')).toHaveAttribute(
+    'data-piece-type',
+    'knight',
+  );
+  await expectMoveHistoryEntry(page, 0, '1. human e7e8n');
+  await expect(page.locator(getSquareButton('e7'))).toHaveAttribute(
+    'data-piece',
+    'empty',
+  );
+  await expectBackdropAbsentFromCurrentCamera(page);
 });
 
 test('keeps the board visible and scrolls long move history inside the controls panel', async ({
